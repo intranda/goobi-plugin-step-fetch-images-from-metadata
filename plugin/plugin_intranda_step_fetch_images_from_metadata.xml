@@ -12,8 +12,12 @@
         <project>*</project>
         <step>*</step>
         
-        <!-- sample parameter -->
-        <value>test</value>
+        <!-- metadata containing the file name -->
+        <filenameMetadata>test</filenameMetadata>
+        
+        <!-- path to images -->     
+        <imagesFolder>test</imagesFolder>
+        
         <!-- display button to finish the task directly from within the entered plugin -->
         <allowTaskFinishButtons>true</allowTaskFinishButtons>
     </config>

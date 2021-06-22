@@ -36,10 +36,10 @@ import net.xeoh.plugins.base.annotations.PluginImplementation;
 
 @PluginImplementation
 @Log4j2
-public class SampleStepPlugin implements IStepPluginVersion2 {
+public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     
     @Getter
-    private String title = "intranda_step_sample";
+    private String title = "intranda_step_fetch_images_from_metadata";
     @Getter
     private Step step;
     @Getter
@@ -57,7 +57,7 @@ public class SampleStepPlugin implements IStepPluginVersion2 {
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
         value = myconfig.getString("value", "default value"); 
         allowTaskFinishButtons = myconfig.getBoolean("allowTaskFinishButtons", false);
-        log.info("Sample step plugin initialized");
+        log.info("FetchImagesFromMetadata step plugin initialized");
     }
 
     @Override
@@ -70,7 +70,7 @@ public class SampleStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public String getPagePath() {
-        return "/uii/plugin_step_sample.xhtml";
+        return "/uii/plugin_step_fetch_images_from_metadata.xhtml";
     }
 
     @Override
@@ -109,7 +109,7 @@ public class SampleStepPlugin implements IStepPluginVersion2 {
         boolean successfull = true;
         // your logic goes here
         
-        log.info("Sample step plugin executed");
+        log.info("FetchImagesFromMetadata step plugin executed");
         if (!successfull) {
             return PluginReturnValue.ERROR;
         }
