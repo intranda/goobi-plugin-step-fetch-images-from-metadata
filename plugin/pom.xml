@@ -21,7 +21,6 @@
   </repositories>
   <modules>
     <module>module-main</module>
-    <module>module-gui</module>
   </modules>
   <dependencies>
     <dependency>

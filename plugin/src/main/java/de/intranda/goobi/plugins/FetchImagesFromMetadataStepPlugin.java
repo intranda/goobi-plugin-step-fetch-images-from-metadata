@@ -1,5 +1,13 @@
 package de.intranda.goobi.plugins;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
  *
@@ -20,8 +28,12 @@ package de.intranda.goobi.plugins;
  */
 
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang.SystemUtils;
+import org.goobi.beans.Process;
 import org.goobi.beans.Step;
 import org.goobi.production.enums.PluginGuiType;
 import org.goobi.production.enums.PluginReturnValue;
@@ -30,32 +42,64 @@ import org.goobi.production.enums.StepReturnValue;
 import org.goobi.production.plugin.interfaces.IStepPluginVersion2;
 
 import de.sub.goobi.config.ConfigPlugins;
+import de.sub.goobi.helper.Helper;
+import de.sub.goobi.helper.StorageProvider;
+import de.sub.goobi.helper.exceptions.DAOException;
+import de.sub.goobi.helper.exceptions.SwapException;
+import de.sub.goobi.persistence.managers.MetadataManager;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
+import ugh.dl.ContentFile;
+import ugh.dl.DigitalDocument;
+import ugh.dl.DocStruct;
+import ugh.dl.DocStructType;
+import ugh.dl.Fileformat;
+import ugh.dl.Metadata;
+import ugh.dl.MetadataType;
+import ugh.dl.Prefs;
+import ugh.exceptions.PreferencesException;
+import ugh.exceptions.ReadException;
+import ugh.exceptions.UGHException;
+import ugh.exceptions.WriteException;
+import ugh.fileformats.mets.MetsMods;
 
 @PluginImplementation
 @Log4j2
 public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
-    
+
     @Getter
     private String title = "intranda_step_fetch_images_from_metadata";
     @Getter
     private Step step;
     @Getter
     private String value;
-    @Getter 
+    @Getter
     private boolean allowTaskFinishButtons;
     private String returnPath;
+    private Process process;
+    private Prefs prefs;
+    private String imageMetadata;
+    private String imagesFolder;
+    private String imageFiletype;
 
     @Override
     public void initialize(Step step, String returnPath) {
         this.returnPath = returnPath;
         this.step = step;
-                
+        this.process = step.getProzess();
+        this.prefs = process.getRegelsatz().getPreferences();
+
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
-        value = myconfig.getString("value", "default value"); 
+        this.imageMetadata = myconfig.getString("filenameMetadata");
+        this.imagesFolder = myconfig.getString("imagesFolder");
+        this.imageFiletype = myconfig.getString("imageType");
+
+        if (!imagesFolder.endsWith("/")) {
+            imagesFolder = imagesFolder + "/";
+        }
+
         allowTaskFinishButtons = myconfig.getBoolean("allowTaskFinishButtons", false);
         log.info("FetchImagesFromMetadata step plugin initialized");
     }
@@ -87,7 +131,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     public String finish() {
         return "/uii" + returnPath;
     }
-    
+
     @Override
     public int getInterfaceVersion() {
         return 0;
@@ -97,7 +141,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     public HashMap<String, StepReturnValue> validate() {
         return null;
     }
-    
+
     @Override
     public boolean execute() {
         PluginReturnValue ret = run();
@@ -107,12 +151,115 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     @Override
     public PluginReturnValue run() {
         boolean successfull = true;
-        // your logic goes here
-        
-        log.info("FetchImagesFromMetadata step plugin executed");
+
+        Process proc = step.getProzess();
+        Fileformat fileformat;
+        try {
+            fileformat = proc.readMetadataFile();
+
+            DigitalDocument dd = fileformat.getDigitalDocument();
+            DocStruct physical = dd.getPhysicalDocStruct();
+            DocStruct logical = dd.getLogicalDocStruct();
+
+            List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
+            Collections.sort(lstImages);
+
+            Boolean boImagesImported = false;
+
+            int iPageNumber = 1;
+
+            for (String strImage : lstImages) {
+
+                String strProcessImageFolder = proc.getImagesOrigDirectory(true);
+
+                DocStruct page = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+
+                if (page != null) {
+                    physical.addChild(page);
+                    logical.addReferenceTo(page, "logical_physical");
+                    boImagesImported = true;
+
+                    iPageNumber++;
+                } else {
+                    log.info("could not find image " + strImage + " for process " + proc.getTitel());
+                    Helper.setFehlerMeldung("could not find image " + strImage + " for process " + proc.getTitel());
+                }
+            }
+
+            //and save the metadata again.
+            process.writeMetadataFile(fileformat);
+
+            if (boImagesImported) {
+                Helper.setMeldung("plugin_intranda_step_fetch_images_from_metadata_imagesImportedForProcess", " " + proc.getTitel());
+                log.info("Images imported for process " + proc.getTitel());
+
+            }
+
+            log.info("FetchImagesFromMetadata step plugin executed");
+
+        } catch (IOException | InterruptedException | SwapException | DAOException | UGHException e) {
+            log.error(e);
+            successfull = false;
+        }
+
         if (!successfull) {
             return PluginReturnValue.ERROR;
         }
+
         return PluginReturnValue.FINISH;
     }
+
+    /**
+     * Find the specified image file in the hashmap. If it is there, copy the file to a (new, if necessary) subfolder of the main folder, named after
+     * the ID of the MetsMods file. Return a new DocStruct with the filename and the location of the file.
+     */
+    private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
+            throws UGHException, IOException {
+
+        String strImageFile = imagesFolder + strImage + "." + imageFiletype;
+
+        File file = new File(strImageFile);
+        if (file == null || !file.exists()) {
+            return null;
+        }
+
+        //create subfolder for images, as necessary:
+        Path path = Paths.get(strProcessImageFolder);
+        StorageProvider.getInstance().createDirectories(path);
+
+        //copy original file:
+        Path pathSource = Paths.get(file.getAbsolutePath());
+        Path pathDest = Paths.get(strProcessImageFolder + file.getName().replace(" ", "_"));
+
+        StorageProvider.getInstance().copyFile(pathSource, pathDest);
+        File fileCopy = new File(pathDest.toString());
+
+        DocStructType pageType = prefs.getDocStrctTypeByName("page");
+        DocStruct dsPage = dd.createDocStruct(pageType);
+
+        //physical page number : just increment for this folio
+        MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
+        Metadata mdPhysPage = new Metadata(typePhysPage);
+        mdPhysPage.setValue(String.valueOf(iPageNumber));
+        dsPage.addMetadata(mdPhysPage);
+
+        //logical page number : take the file name
+        MetadataType typeLogPage = prefs.getMetadataTypeByName("logicalPageNumber");
+        Metadata mdLogPage = new Metadata(typeLogPage);
+
+        mdLogPage.setValue(strImage);
+        dsPage.addMetadata(mdLogPage);
+
+        ContentFile cf = new ContentFile();
+        if (SystemUtils.IS_OS_WINDOWS) {
+            cf.setLocation("file:" + fileCopy.getCanonicalPath());
+        } else {
+            cf.setLocation("file:/" + fileCopy.getCanonicalPath());
+        }
+        dsPage.addContentFile(cf);
+        dsPage.setImageName(fileCopy.getName());
+
+        return dsPage;
+    }
+
 }

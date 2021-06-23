@@ -13,13 +13,14 @@
         <step>*</step>
         
         <!-- metadata containing the file name -->
-        <filenameMetadata>test</filenameMetadata>
+        <filenameMetadata>SeparatedMaterial</filenameMetadata>
         
         <!-- path to images -->     
-        <imagesFolder>test</imagesFolder>
+        <imagesFolder>/opt/digiverso/import/images/</imagesFolder>
         
-        <!-- display button to finish the task directly from within the entered plugin -->
-        <allowTaskFinishButtons>true</allowTaskFinishButtons>
+          <!-- image file type -->     
+        <imageType>jpg</imageType>
+
     </config>
 
 </config_plugin>
