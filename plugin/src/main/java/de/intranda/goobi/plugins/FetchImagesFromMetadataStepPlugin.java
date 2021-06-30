@@ -35,6 +35,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.SystemUtils;
 import org.goobi.beans.Process;
 import org.goobi.beans.Step;
+import org.goobi.production.enums.LogType;
 import org.goobi.production.enums.PluginGuiType;
 import org.goobi.production.enums.PluginReturnValue;
 import org.goobi.production.enums.PluginType;
@@ -106,10 +107,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public PluginGuiType getPluginGuiType() {
-        return PluginGuiType.FULL;
+//        return PluginGuiType.FULL;
         // return PluginGuiType.PART;
         // return PluginGuiType.PART_AND_FULL;
-        // return PluginGuiType.NONE;
+         return PluginGuiType.NONE;
     }
 
     @Override
@@ -181,8 +182,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
                     iPageNumber++;
                 } else {
-                    log.info("could not find image " + strImage + " for process " + proc.getTitel());
-                    Helper.setFehlerMeldung("could not find image " + strImage + " for process " + proc.getTitel());
+                    log.error("could not find image " + strImage + " for process " + proc.getTitel());
+                    Helper.addMessageToProcessLog(process.getId(), LogType.ERROR, "could not find image " + strImage, " - ");
+                    successfull = false;
                 }
             }
 
@@ -190,9 +192,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             process.writeMetadataFile(fileformat);
 
             if (boImagesImported) {
-                Helper.setMeldung("plugin_intranda_step_fetch_images_from_metadata_imagesImportedForProcess", " " + proc.getTitel());
+                Helper.addMessageToProcessLog(process.getId(), LogType.INFO, "added images to " + proc.getTitel(), " - ");
                 log.info("Images imported for process " + proc.getTitel());
-
             }
 
             log.info("FetchImagesFromMetadata step plugin executed");
