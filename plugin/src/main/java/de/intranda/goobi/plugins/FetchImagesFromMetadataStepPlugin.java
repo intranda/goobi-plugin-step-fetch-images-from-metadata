@@ -170,7 +170,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             for (String strImage : lstImages) {
 
-                String strProcessImageFolder = proc.getImagesOrigDirectory(true);
+                String strProcessImageFolder = proc.getConfiguredImageFolder("media");
 
                 DocStruct page = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
 
