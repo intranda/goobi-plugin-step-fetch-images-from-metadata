@@ -14,8 +14,8 @@ This documentation describes the installation, configuration and use of the plug
 | Identifier | plugin_intranda_step_fetch_images_from_metadata |
 | Source code | [https://github.com/intranda/plugin_intranda_step_fetch_images_from_metadata](https://github.com/intranda/plugin_intranda_step_fetch_images_from_metadata) |
 | Licence | GPL 2.0 or newer |
-| Compatibility | Goobi workflow 2021.03 |
-| Documentation date | 10.04.2021 |
+| Compatibility | Goobi workflow 2021.06 |
+| Documentation date | 30.06.2021 |
 
 ### Installation
 
