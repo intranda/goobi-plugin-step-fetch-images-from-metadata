@@ -2,10 +2,8 @@ package de.intranda.goobi.plugins;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Collections;
 
 /**
@@ -31,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.SystemUtils;
 import org.goobi.beans.Process;
 import org.goobi.beans.Step;
@@ -59,11 +56,7 @@ import ugh.dl.Fileformat;
 import ugh.dl.Metadata;
 import ugh.dl.MetadataType;
 import ugh.dl.Prefs;
-import ugh.exceptions.PreferencesException;
-import ugh.exceptions.ReadException;
 import ugh.exceptions.UGHException;
-import ugh.exceptions.WriteException;
-import ugh.fileformats.mets.MetsMods;
 
 @PluginImplementation
 @Log4j2
@@ -107,10 +100,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public PluginGuiType getPluginGuiType() {
-//        return PluginGuiType.FULL;
+        //        return PluginGuiType.FULL;
         // return PluginGuiType.PART;
         // return PluginGuiType.PART_AND_FULL;
-         return PluginGuiType.NONE;
+        return PluginGuiType.NONE;
     }
 
     @Override
@@ -198,7 +191,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             log.info("FetchImagesFromMetadata step plugin executed");
 
-        } catch (IOException | InterruptedException | SwapException | DAOException | UGHException e) {
+        } catch (IOException | SwapException | DAOException | UGHException e) {
             log.error(e);
             successfull = false;
         }
