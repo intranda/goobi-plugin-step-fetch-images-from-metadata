@@ -76,6 +76,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String imageMetadata;
     private String imagesFolder;
     private String imageFiletype;
+    private boolean removeOldFileType;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -89,6 +90,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.imageMetadata = myconfig.getString("filenameMetadata");
         this.imagesFolder = myconfig.getString("imagesFolder");
         this.imageFiletype = myconfig.getString("imageType");
+        this.removeOldFileType = myconfig.getBoolean("removeOldFileType", false);
 
         if (!imagesFolder.endsWith("/")) {
             imagesFolder = imagesFolder + "/";
@@ -165,7 +167,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             for (String strImage : lstImages) {
 
                 String strProcessImageFolder = proc.getConfiguredImageFolder("media");
-
+                if (removeOldFileType) {
+                    int index = strImage.lastIndexOf(".");
+                    if (index > 0) {
+                        strImage = strImage.substring(0, index);
+                    }
+                }
                 DocStruct page = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
 
                 if (page != null) {

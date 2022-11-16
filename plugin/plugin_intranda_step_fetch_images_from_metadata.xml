@@ -20,6 +20,8 @@
         
           <!-- image file type -->     
         <imageType>jpg</imageType>
+        <!-- remove existing filetype -->
+        <removeOldFileType>false</removeOldFileType>    
 
     </config>
 
