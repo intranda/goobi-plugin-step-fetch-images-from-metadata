@@ -77,6 +77,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String imagesFolder;
     private String imageFiletype;
     private boolean removeOldFileType;
+    private String fileHandlingMode;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -91,6 +92,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.imagesFolder = myconfig.getString("imagesFolder");
         this.imageFiletype = myconfig.getString("imageType");
         this.removeOldFileType = myconfig.getBoolean("removeOldFileType", false);
+        this.fileHandlingMode = myconfig.getString("FileHandlingMode", "copy");
 
         if (!imagesFolder.endsWith("/")) {
             imagesFolder = imagesFolder + "/";
@@ -232,7 +234,14 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         Path pathSource = Paths.get(file.getAbsolutePath());
         Path pathDest = Paths.get(strProcessImageFolder + file.getName().replace(" ", "_"));
 
-        StorageProvider.getInstance().copyFile(pathSource, pathDest);
+        switch (this.fileHandlingMode) {
+            case "move":
+                StorageProvider.getInstance().move(pathSource, pathDest);
+                break;
+            case "copy":
+            default:
+                StorageProvider.getInstance().copyFile(pathSource, pathDest);
+        }
         File fileCopy = new File(pathDest.toString());
 
         DocStructType pageType = prefs.getDocStrctTypeByName("page");

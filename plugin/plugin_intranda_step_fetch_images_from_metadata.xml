@@ -18,10 +18,14 @@
         <!-- path to images -->     
         <imagesFolder>/opt/digiverso/import/images/</imagesFolder>
         
-          <!-- image file type -->     
+        <!-- image file type -->     
         <imageType>jpg</imageType>
+        
         <!-- remove existing filetype -->
-        <removeOldFileType>false</removeOldFileType>    
+        <removeOldFileType>false</removeOldFileType>
+        
+        <!-- copy or move -->
+        <FileHandlingMode>copy</FileHandlingMode> 
 
     </config>
 
