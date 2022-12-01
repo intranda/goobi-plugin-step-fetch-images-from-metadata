@@ -74,10 +74,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private Process process;
     private Prefs prefs;
     private String imageMetadata;
-    private String imagesFolder;
+    private String folder;
     private String imageFiletype;
-    private boolean removeOldFileType;
-    private String fileHandlingMode;
+    private boolean ignoreFileExtension;
+    private String mode;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -89,13 +89,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
         this.imageMetadata = myconfig.getString("filenameMetadata");
-        this.imagesFolder = myconfig.getString("imagesFolder");
-        this.imageFiletype = myconfig.getString("imageType");
-        this.removeOldFileType = myconfig.getBoolean("removeOldFileType", false);
-        this.fileHandlingMode = myconfig.getString("FileHandlingMode", "copy");
+        this.folder = myconfig.getString("fileHandling/@folder");
+        this.ignoreFileExtension = myconfig.getBoolean("fileHandling/@ignoreFileExtension", false);
+        this.mode = myconfig.getString("fileHandling/@mode", "copy");
 
-        if (!imagesFolder.endsWith("/")) {
-            imagesFolder = imagesFolder + "/";
+        if (!folder.endsWith("/")) {
+            folder = folder + "/";
         }
 
         allowTaskFinishButtons = myconfig.getBoolean("allowTaskFinishButtons", false);
@@ -169,7 +168,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             for (String strImage : lstImages) {
 
                 String strProcessImageFolder = proc.getConfiguredImageFolder("media");
-                if (removeOldFileType) {
+                if (ignoreFileExtension) {
                     int index = strImage.lastIndexOf(".");
                     if (index > 0) {
                         strImage = strImage.substring(0, index);
@@ -219,10 +218,16 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
 
-        String strImageFile = imagesFolder + strImage + "." + imageFiletype;
+        List<Path> imagePaths = StorageProvider.getInstance().listFiles(folder, path -> {
+            return path.getFileName().toString().matches(strImage + "\\..*");
+        });
 
-        File file = new File(strImageFile);
-        if (file == null || !file.exists()) {
+        if (imagePaths.isEmpty()) {
+            return null;
+        }
+        //for now take first matching image
+        File file = imagePaths.get(0).toFile();
+        if (!file.exists()) {
             return null;
         }
 
@@ -234,7 +239,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         Path pathSource = Paths.get(file.getAbsolutePath());
         Path pathDest = Paths.get(strProcessImageFolder + file.getName().replace(" ", "_"));
 
-        switch (this.fileHandlingMode) {
+        switch (this.mode) {
             case "move":
                 StorageProvider.getInstance().move(pathSource, pathDest);
                 break;
