@@ -14,18 +14,8 @@
         
         <!-- metadata containing the file name -->
         <filenameMetadata>SeparatedMaterial</filenameMetadata>
-        
-        <!-- path to images -->     
-        <imagesFolder>/opt/digiverso/import/images/</imagesFolder>
-        
-        <!-- image file type -->     
-        <imageType>jpg</imageType>
-        
-        <!-- remove existing filetype -->
-        <removeOldFileType>false</removeOldFileType>
-        
-        <!-- copy or move -->
-        <FileHandlingMode>copy</FileHandlingMode> 
+        <!-- mode="copy|move"   ignoreFileExtension="true|false"-->
+        <fileHandling mode="copy" ignoreFileExtension="true" folder="/opt/digiverso/import/images/" />
 
     </config>
 
