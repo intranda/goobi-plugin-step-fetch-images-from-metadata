@@ -219,7 +219,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             throws UGHException, IOException {
 
         List<Path> imagePaths = StorageProvider.getInstance().listFiles(folder, path -> {
-            return path.getFileName().toString().matches(strImage + "\\..*");
+            return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*");
         });
 
         if (imagePaths.isEmpty()) {

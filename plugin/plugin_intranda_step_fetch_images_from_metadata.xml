@@ -18,5 +18,4 @@
         <fileHandling mode="copy" ignoreFileExtension="true" folder="/opt/digiverso/import/images/" />
 
     </config>
-
 </config_plugin>
