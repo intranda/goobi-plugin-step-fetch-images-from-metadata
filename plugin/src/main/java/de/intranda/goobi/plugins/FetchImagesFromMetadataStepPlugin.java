@@ -78,6 +78,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String imageFiletype;
     private boolean ignoreFileExtension;
     private String mode;
+    private boolean ignoreCopyErrors;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -92,6 +93,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.folder = myconfig.getString("fileHandling/@folder");
         this.ignoreFileExtension = myconfig.getBoolean("fileHandling/@ignoreFileExtension", false);
         this.mode = myconfig.getString("fileHandling/@mode", "copy");
+        this.ignoreCopyErrors = myconfig.getBoolean("fileHandling/@ignoreCopyErrors", false);
 
         if (!folder.endsWith("/")) {
             folder = folder + "/";
@@ -175,6 +177,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     }
                 }
                 DocStruct page = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+                Helper.addMessageToProcessLog(process.getId(), LogType.DEBUG, "Image successfully copied into process folder: " + strImage);
 
                 if (page != null) {
                     physical.addChild(page);
@@ -182,6 +185,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     boImagesImported = true;
 
                     iPageNumber++;
+                } else if (ignoreCopyErrors) {
+                    Helper.addMessageToProcessLog(process.getId(), LogType.INFO, "Image could not be copied into process folder: " + strImage);
                 } else {
                     log.error("could not find image " + strImage + " for process " + proc.getTitel());
                     Helper.addMessageToProcessLog(process.getId(), LogType.ERROR, "could not find image " + strImage, " - ");
