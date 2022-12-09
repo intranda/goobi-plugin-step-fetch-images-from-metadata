@@ -75,7 +75,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private Prefs prefs;
     private String imageMetadata;
     private String folder;
-    private String imageFiletype;
     private boolean ignoreFileExtension;
     private String mode;
     private boolean ignoreCopyErrors;
@@ -147,6 +146,17 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return ret != PluginReturnValue.ERROR;
     }
 
+    private String findExistingMetadata(DocStruct physical, String elementType) {
+        if (physical.getAllMetadata() != null) {
+            for (Metadata md : physical.getAllMetadata()) {
+                if (md.getType().getName().equals(elementType)) {
+                    return md.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     public PluginReturnValue run() {
         boolean successfull = true;
@@ -159,6 +169,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             DigitalDocument dd = fileformat.getDigitalDocument();
             DocStruct physical = dd.getPhysicalDocStruct();
             DocStruct logical = dd.getLogicalDocStruct();
+
+            if (findExistingMetadata(physical, "pathimagefiles") == null) {
+                Metadata imagePath = new Metadata(this.prefs.getMetadataTypeByName("pathimagefiles"));
+                imagePath.setValue(proc.getConfiguredImageFolder("media"));
+                physical.addMetadata(imagePath);
+            }
 
             List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
             Collections.sort(lstImages);
