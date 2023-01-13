@@ -42,9 +42,12 @@ import org.goobi.production.plugin.interfaces.IStepPluginVersion2;
 import de.sub.goobi.config.ConfigPlugins;
 import de.sub.goobi.helper.Helper;
 import de.sub.goobi.helper.StorageProvider;
+import de.sub.goobi.helper.StorageProviderInterface;
 import de.sub.goobi.helper.exceptions.DAOException;
 import de.sub.goobi.helper.exceptions.SwapException;
 import de.sub.goobi.persistence.managers.MetadataManager;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
@@ -78,6 +81,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private boolean ignoreFileExtension;
     private String mode;
     private boolean ignoreCopyErrors;
+    private StorageProviderInterface storageProvider;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -85,6 +89,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.step = step;
         this.process = step.getProzess();
         this.prefs = process.getRegelsatz().getPreferences();
+        this.storageProvider = StorageProvider.getInstance();
 
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
@@ -104,9 +109,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public PluginGuiType getPluginGuiType() {
-        //        return PluginGuiType.FULL;
-        // return PluginGuiType.PART;
-        // return PluginGuiType.PART_AND_FULL;
         return PluginGuiType.NONE;
     }
 
@@ -179,7 +181,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
             Collections.sort(lstImages);
 
-            Boolean boImagesImported = false;
+            boolean boImagesImported = false;
 
             int iPageNumber = 1;
 
@@ -192,8 +194,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                         strImage = strImage.substring(0, index);
                     }
                 }
-                DocStruct page = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
-                Helper.addMessageToProcessLog(process.getId(), LogType.DEBUG, "Image successfully copied into process folder: " + strImage);
+                Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+                DocStruct page = result.getPage();
 
                 if (page != null) {
                     physical.addChild(page);
@@ -202,10 +204,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
                     iPageNumber++;
                 } else if (ignoreCopyErrors) {
-                    Helper.addMessageToProcessLog(process.getId(), LogType.INFO, "Image could not be copied into process folder: " + strImage);
+                    Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, result.getMessage());
                 } else {
-                    log.error("could not find image " + strImage + " for process " + proc.getTitel());
-                    Helper.addMessageToProcessLog(process.getId(), LogType.ERROR, "could not find image " + strImage, " - ");
+                    log.error("Could not find image " + strImage + " for process " + proc.getTitel());
+                    Helper.addMessageToProcessJournal(process.getId(), LogType.ERROR, result.getMessage());
                     successfull = false;
                 }
             }
@@ -214,7 +216,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             process.writeMetadataFile(fileformat);
 
             if (boImagesImported) {
-                Helper.addMessageToProcessLog(process.getId(), LogType.INFO, "added images to " + proc.getTitel(), " - ");
+                Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, "added images to " + proc.getTitel());
                 log.info("Images imported for process " + proc.getTitel());
             }
 
@@ -236,37 +238,49 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * Find the specified image file in the hashmap. If it is there, copy the file to a (new, if necessary) subfolder of the main folder, named after
      * the ID of the MetsMods file. Return a new DocStruct with the filename and the location of the file.
      */
-    private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
+    private Result getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
 
-        List<Path> imagePaths = StorageProvider.getInstance().listFiles(folder, path -> {
+        List<Path> imagePaths = this.storageProvider.listFiles(folder, path -> {
             return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*");
         });
 
         if (imagePaths.isEmpty()) {
-            return null;
+            return new Result("There was no file with the name:" + strImage + " in the images folder.", null);
         }
         //for now take first matching image
         File file = imagePaths.get(0).toFile();
         if (!file.exists()) {
-            return null;
+            return new Result("There was an error processing the file: " + strImage + " in the images folder.", null);
         }
 
         //create subfolder for images, as necessary:
         Path path = Paths.get(strProcessImageFolder);
-        StorageProvider.getInstance().createDirectories(path);
+        this.storageProvider.createDirectories(path);
 
-        //copy original file:
+        //copy or move original file:
         Path pathSource = Paths.get(file.getAbsolutePath());
-        Path pathDest = Paths.get(strProcessImageFolder + file.getName().replace(" ", "_"));
+        //replace spaces with "_"
+        String fileName = file.getName().replace(" ", "_");
+        Path pathDest = Paths.get(strProcessImageFolder + fileName);
+
+        // get list with filenames in target directory
+        List<String> existingImages = storageProvider.list(strProcessImageFolder);
+
+        if (existingImages.contains(fileName)) {
+            return new Result("A file with the Name: " + strImage + " already exists for this process.", null);
+        }
 
         switch (this.mode) {
             case "move":
-                StorageProvider.getInstance().move(pathSource, pathDest);
+                this.storageProvider.move(pathSource, pathDest);
+                Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, "Image moved into process folder: " + strImage);
                 break;
             case "copy":
             default:
-                StorageProvider.getInstance().copyFile(pathSource, pathDest);
+                this.storageProvider.copyFile(pathSource, pathDest);
+                Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, "Image copied into process folder: " + strImage);
+
         }
         File fileCopy = new File(pathDest.toString());
 
@@ -295,7 +309,14 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         dsPage.addContentFile(cf);
         dsPage.setImageName(fileCopy.getName());
 
-        return dsPage;
+        return new Result("", dsPage);
+    }
+
+    @Data
+    @AllArgsConstructor
+    public class Result {
+        private String message;
+        private DocStruct page;
     }
 
 }
