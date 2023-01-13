@@ -184,10 +184,20 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             boolean boImagesImported = false;
 
             int iPageNumber = 1;
+            String strProcessImageFolder = proc.getConfiguredImageFolder("media");
+
+            // get list with filenames in target directory
+            List<String> existingImages = storageProvider.list(strProcessImageFolder);
 
             for (String strImage : lstImages) {
 
-                String strProcessImageFolder = proc.getConfiguredImageFolder("media");
+                if (existingImages.contains(strImage.replace(" ", "_"))) {
+                    log.debug("A file with the Name: " + strImage + " already exists for this process.");
+                    Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
+                            "A file with the Name: " + strImage + " already exists for this process.");
+                    continue;
+                }
+
                 if (ignoreFileExtension) {
                     int index = strImage.lastIndexOf(".");
                     if (index > 0) {
@@ -204,7 +214,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
                     iPageNumber++;
                 } else if (ignoreCopyErrors) {
-                    Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, result.getMessage());
+                    Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
                 } else {
                     log.error("Could not find image " + strImage + " for process " + proc.getTitel());
                     Helper.addMessageToProcessJournal(process.getId(), LogType.ERROR, result.getMessage());
@@ -263,13 +273,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         //replace spaces with "_"
         String fileName = file.getName().replace(" ", "_");
         Path pathDest = Paths.get(strProcessImageFolder + fileName);
-
-        // get list with filenames in target directory
-        List<String> existingImages = storageProvider.list(strProcessImageFolder);
-
-        if (existingImages.contains(fileName)) {
-            return new Result("A file with the Name: " + strImage + " already exists for this process.", null);
-        }
 
         switch (this.mode) {
             case "move":
