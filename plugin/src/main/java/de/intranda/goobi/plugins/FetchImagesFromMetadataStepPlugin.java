@@ -179,7 +179,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             }
 
             List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
-            Collections.sort(lstImages);
+            // Collections.sort(lstImages);
 
             boolean boImagesImported = false;
 
