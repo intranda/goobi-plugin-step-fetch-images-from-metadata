@@ -16,6 +16,8 @@
         <filenameMetadata>SeparatedMaterial</filenameMetadata>
         <!-- mode="copy|move"   ignoreFileExtension="true|false"-->
         <fileHandling mode="copy" ignoreFileExtension="true" folder="/opt/digiverso/import/images/" />
+        <!-- enabled= true|false exportImages=true|false -->
+        <export enabled="true" exportImages="true" />
 
     </config>
 </config_plugin>

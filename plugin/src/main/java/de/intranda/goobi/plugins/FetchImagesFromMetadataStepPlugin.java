@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.SystemUtils;
 import org.goobi.beans.Process;
 import org.goobi.beans.Step;
@@ -37,15 +38,19 @@ import org.goobi.production.enums.PluginGuiType;
 import org.goobi.production.enums.PluginReturnValue;
 import org.goobi.production.enums.PluginType;
 import org.goobi.production.enums.StepReturnValue;
+import org.goobi.production.plugin.PluginLoader;
+import org.goobi.production.plugin.interfaces.IExportPlugin;
 import org.goobi.production.plugin.interfaces.IStepPluginVersion2;
 
 import de.sub.goobi.config.ConfigPlugins;
+import de.sub.goobi.export.dms.ExportDms;
 import de.sub.goobi.helper.Helper;
 import de.sub.goobi.helper.StorageProvider;
 import de.sub.goobi.helper.StorageProviderInterface;
 import de.sub.goobi.helper.exceptions.DAOException;
 import de.sub.goobi.helper.exceptions.SwapException;
 import de.sub.goobi.persistence.managers.MetadataManager;
+import de.sub.goobi.persistence.managers.ProcessManager;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
@@ -82,6 +87,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String mode;
     private boolean ignoreCopyErrors;
     private StorageProviderInterface storageProvider;
+    private boolean startExport;
+    private boolean exportImages;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -98,7 +105,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.ignoreFileExtension = myconfig.getBoolean("fileHandling/@ignoreFileExtension", false);
         this.mode = myconfig.getString("fileHandling/@mode", "copy");
         this.ignoreCopyErrors = myconfig.getBoolean("fileHandling/@ignoreCopyErrors", false);
-
+        this.startExport = myconfig.getBoolean("export/@enabled", false);
+        this.exportImages = myconfig.getBoolean("export/@exportImages", true);
         if (!folder.endsWith("/")) {
             folder = folder + "/";
         }
@@ -241,6 +249,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             return PluginReturnValue.ERROR;
         }
 
+        if (this.startExport && this.process != null) {
+
+            exportProcess(this.process, this.exportImages);
+
+        }
         return PluginReturnValue.FINISH;
     }
 
@@ -313,6 +326,34 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         dsPage.setImageName(fileCopy.getName());
 
         return new Result("", dsPage);
+    }
+
+    /**
+     * Do the export of the process
+     */
+    private void exportProcess(Process p, boolean exportImg) {
+        try {
+            IExportPlugin export = null;
+            String pluginName = ProcessManager.getExportPluginName(p.getId());
+            if (StringUtils.isNotEmpty(pluginName)) {
+                try {
+                    export = (IExportPlugin) PluginLoader.getPluginByTitle(PluginType.Export, pluginName);
+                } catch (Exception e) {
+                    log.error("Can't load export plugin, use default plugin", e);
+                    export = new ExportDms();
+                }
+            }
+            if (export == null) {
+                export = new ExportDms();
+            }
+            export.setExportFulltext(false);
+            export.setExportImages(exportImg);
+            export.startExport(p);
+            log.info("Export finished inside of catalogue poller for process with ID " + p.getId());
+            Helper.addMessageToProcessJournal(p.getId(), LogType.DEBUG, "Process successfully exported by catalogue poller");
+        } catch (NoSuchMethodError | Exception e) {
+            log.error("Exception during the export of process " + p.getId(), e);
+        }
     }
 
     @Data
