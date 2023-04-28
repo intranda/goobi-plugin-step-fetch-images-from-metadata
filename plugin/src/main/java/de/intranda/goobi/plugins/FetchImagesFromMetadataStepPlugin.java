@@ -214,13 +214,13 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 }
                 Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
                 DocStruct page = result.getPage();
-
+                iPageNumber++;
                 if (page != null) {
                     physical.addChild(page);
                     logical.addReferenceTo(page, "logical_physical");
                     boImagesImported = true;
 
-                    iPageNumber++;
+                    //                    iPageNumber++;
                 } else if (ignoreCopyErrors) {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
                 } else {
