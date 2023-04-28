@@ -180,6 +180,13 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             DocStruct physical = dd.getPhysicalDocStruct();
             DocStruct logical = dd.getLogicalDocStruct();
 
+            // cleaning up the mets file
+            List<DocStruct> physicalChildren = physical.getAllChildren();
+            for (DocStruct child : physicalChildren) {
+                logical.removeReferenceFrom(child);
+                physical.removeChild(child);
+            }
+
             if (findExistingMetadata(physical, "pathimagefiles") == null) {
                 Metadata imagePath = new Metadata(this.prefs.getMetadataTypeByName("pathimagefiles"));
                 imagePath.setValue(proc.getConfiguredImageFolder("media"));
