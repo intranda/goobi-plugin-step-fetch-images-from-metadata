@@ -203,7 +203,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     log.debug("A file with the Name: " + strImage + " already exists for this process.");
                     Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
                             "A file with the Name: " + strImage + " already exists for this process.");
-                    continue;
+                    //                    continue;
                 }
 
                 if (ignoreFileExtension) {
