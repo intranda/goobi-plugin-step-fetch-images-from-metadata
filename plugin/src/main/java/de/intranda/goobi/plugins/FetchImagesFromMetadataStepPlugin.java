@@ -189,6 +189,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
             Collections.sort(lstImages);
 
+            log.debug("lstImages has size = " + lstImages.size());
+
             boolean boImagesImported = false;
 
             int iPageNumber = 1;
@@ -198,6 +200,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             List<String> existingImages = storageProvider.list(strProcessImageFolder);
 
             for (String strImage : lstImages) {
+
+                log.debug("strImage = " + strImage);
 
                 if (existingImages.contains(strImage.replace(" ", "_"))) {
                     log.debug("A file with the Name: " + strImage + " already exists for this process.");
@@ -214,13 +218,16 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 }
                 Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
                 DocStruct page = result.getPage();
+                // OPTION_1: reserve the page numbers for unfound and unprocessed images 
                 iPageNumber++;
+                // -> May result in an incontinuous order of images 
                 if (page != null) {
                     physical.addChild(page);
                     logical.addReferenceTo(page, "logical_physical");
                     boImagesImported = true;
-
-                    //                    iPageNumber++;
+                    // OPTION_2: only count pages that are successfully processed
+                    //                    iPageNumber++; 
+                    // -> May result in duplicated orders
                 } else if (ignoreCopyErrors) {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
                 } else {
