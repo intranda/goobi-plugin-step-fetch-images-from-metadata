@@ -210,12 +210,14 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     //                    continue;
                 }
 
+                // remove file extension if configured so
                 if (ignoreFileExtension) {
                     int index = strImage.lastIndexOf(".");
                     if (index > 0) {
                         strImage = strImage.substring(0, index);
                     }
                 }
+
                 Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
                 DocStruct page = result.getPage();
                 // OPTION_1: reserve the page numbers for unfound and unprocessed images 
@@ -271,28 +273,43 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private Result getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
 
-        List<Path> imagePaths = this.storageProvider.listFiles(folder, path -> {
-            return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*");
-        });
-
-        if (imagePaths.isEmpty()) {
+        // get matched image file
+        File file = getMatchedImageFile(strImage);
+        if (file == null) {
             return new Result("There was no file with the name:" + strImage + " in the images folder.", null);
         }
-        //for now take first matching image
-        File file = imagePaths.get(0).toFile();
         if (!file.exists()) {
             return new Result("There was an error processing the file: " + strImage + " in the images folder.", null);
         }
 
-        //create subfolder for images, as necessary:
+        // save the image file
+        File fileCopy = saveImageFile(strImage, strProcessImageFolder, file);
+
+        // create the page's DocStruct
+        DocStruct dsPage = createDocStructPage(fileCopy, strImage, dd, iPageNumber);
+
+        return new Result("", dsPage);
+    }
+
+    private File getMatchedImageFile(String strImage) {
+        List<Path> imagePaths = this.storageProvider.listFiles(folder, path -> {
+            return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*");
+        });
+
+        // take the first match if there is any
+        return imagePaths.isEmpty() ? null : imagePaths.get(0).toFile();
+    }
+
+    private File saveImageFile(String strImage, String strProcessImageFolder, File file) throws IOException {
+        // create subfolder for images, as necessary:
         Path path = Paths.get(strProcessImageFolder);
         this.storageProvider.createDirectories(path);
 
-        //copy or move original file:
+        // copy or move original file:
         Path pathSource = Paths.get(file.getAbsolutePath());
-        //replace spaces with "_"
+        // replace spaces with "_"
         String fileName = file.getName().replace(" ", "_");
-        Path pathDest = Paths.get(strProcessImageFolder + fileName);
+        Path pathDest = Paths.get(strProcessImageFolder, fileName);
 
         switch (this.mode) {
             case "move":
@@ -303,26 +320,28 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             default:
                 this.storageProvider.copyFile(pathSource, pathDest);
                 Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, "Image copied into process folder: " + strImage);
-
         }
-        File fileCopy = new File(pathDest.toString());
 
+        return new File(pathDest.toString());
+    }
+
+    private DocStruct createDocStructPage(File fileCopy, String strImage, DigitalDocument dd, int iPageNumber) throws UGHException, IOException {
         DocStructType pageType = prefs.getDocStrctTypeByName("page");
         DocStruct dsPage = dd.createDocStruct(pageType);
 
-        //physical page number : just increment for this folio
+        // physical page number : just increment for this folio
         MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
         Metadata mdPhysPage = new Metadata(typePhysPage);
         mdPhysPage.setValue(String.valueOf(iPageNumber));
         dsPage.addMetadata(mdPhysPage);
 
-        //logical page number : take the file name
+        // logical page number : take the file name
         MetadataType typeLogPage = prefs.getMetadataTypeByName("logicalPageNumber");
         Metadata mdLogPage = new Metadata(typeLogPage);
-
         mdLogPage.setValue(strImage);
         dsPage.addMetadata(mdLogPage);
 
+        // content file
         ContentFile cf = new ContentFile();
         if (SystemUtils.IS_OS_WINDOWS) {
             cf.setLocation("file:" + fileCopy.getCanonicalPath());
@@ -332,7 +351,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         dsPage.addContentFile(cf);
         dsPage.setImageName(fileCopy.getName());
 
-        return new Result("", dsPage);
+        return dsPage;
     }
 
     /**
