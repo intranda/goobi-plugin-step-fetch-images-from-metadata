@@ -296,19 +296,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private Result getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
         log.debug("getting existing image page");
         strImage = strImage.replace(" ", "_");
+        String regex = getRegularExpression(strImage);
         List<DocStruct> pages = dd.getAllDocStructsByType("page");
         for (DocStruct page : pages) {
             String imageName = page.getImageName();
-            // only works if ignoreFileExtension is set true 
-            //            if (imageName.matches("\\Q" + strImage + "\\E" + "\\..*")) {
-            //                log.debug("imageName = " + imageName);
-            //                MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
-            //                Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
-            //                mdPhysPage.setValue(String.valueOf(iPageNumber));
-            //                return new Result("", page);
-            //            }
-            // only works if ignoreFileExtension is set false 
-            if (imageName.matches("\\Q" + strImage + "\\E")) {
+
+            if (imageName.matches(regex)) {
                 log.debug("imageName = " + imageName);
                 MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
                 Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
@@ -349,10 +342,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     private File getMatchedImageFile(String strImage, String folder) {
+        String regex = getRegularExpression(strImage);
         List<Path> imagePaths = this.storageProvider.listFiles(folder, path -> {
-            
-            //            return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*"); // only works if ignoreFileExtension is set true 
-            return path.getFileName().toString().matches("\\Q" + strImage + "\\E"); // only works if ignoreFileExtension is set false
+            return path.getFileName().toString().matches(regex);
         });
 
         // take the first match if there is any
@@ -411,6 +403,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         dsPage.setImageName(fileCopy.getName());
 
         return dsPage;
+    }
+
+    private String getRegularExpression(String strImage) {
+        String base = "\\Q" + strImage + "\\E";
+
+        return base + (this.ignoreFileExtension ? "\\..*" : "");
     }
 
     /**
