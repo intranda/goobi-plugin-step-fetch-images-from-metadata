@@ -203,20 +203,13 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 log.debug("strImage = " + strImage);
 
                 // check if the image is already imported
-                boolean imageImported = existingImages.contains(strImage.replace(" ", "_"));
-                if (imageImported) {
+                boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
+                if (imageExisting) {
                     log.debug("A file with the Name: " + strImage + " already exists for this process.");
                     Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
                             "A file with the Name: " + strImage + " already exists for this process.");
                     //                    continue;
                 }
-
-                //                if (existingImages.contains(strImage.replace(" ", "_"))) {
-                //                    log.debug("A file with the Name: " + strImage + " already exists for this process.");
-                //                    Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
-                //                            "A file with the Name: " + strImage + " already exists for this process.");
-                //                    //                    continue;
-                //                }
 
                 // remove file extension if configured so
                 if (ignoreFileExtension) {
@@ -227,24 +220,18 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 }
 
                 // try to import the image if not done yet
-                //                Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
-                Result result = getResultPage(strImage, strProcessImageFolder, dd, iPageNumber, imageImported);
+                Result result = getResultPage(strImage, strProcessImageFolder, dd, iPageNumber, imageExisting);
                 DocStruct page = result.getPage();
-                // OPTION_1: reserve the page numbers for unfound and unprocessed images 
-                //                iPageNumber++;
-                // -> May result in an incontinuous order of images 
+
                 if (page != null) {
+                    // remove old infos
+                    logical.removeReferenceTo(page); // child will be removed automatically via this call
+                    // add new infos
                     physical.addChild(page);
                     logical.addReferenceTo(page, "logical_physical");
-                    //                    boImagesImported = true;
-                    // OPTION_2: only count pages that are successfully processed
+
+                    boImagesImported = true;
                     iPageNumber++;
-                    // -> May result in duplicated orders
-
-                    int position = physical.getPositionofChild(page);
-                    log.debug("position = " + position);
-
-                    //                    page.getAllMetadataByType(prefs.getMetadataTypeByName("physPageNumber"));
 
                 } else if (ignoreCopyErrors) {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
@@ -253,11 +240,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.ERROR, result.getMessage());
                     successfull = false;
                 }
-                
-                imageImported = imageImported || page != null;
-                //                iPageNumber += imageImported ? 1 : 0;
-
-                boImagesImported = boImagesImported || imageImported;
             }
 
             //and save the metadata again.
