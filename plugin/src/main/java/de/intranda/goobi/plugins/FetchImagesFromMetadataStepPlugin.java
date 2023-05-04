@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
 
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
@@ -187,7 +186,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             }
 
             List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
-            Collections.sort(lstImages);
+            //            Collections.sort(lstImages); // this line will reorder the images according to their names
 
             log.debug("lstImages has size = " + lstImages.size());
 
@@ -203,12 +202,21 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
                 log.debug("strImage = " + strImage);
 
-                if (existingImages.contains(strImage.replace(" ", "_"))) {
+                // check if the image is already imported
+                boolean imageImported = existingImages.contains(strImage.replace(" ", "_"));
+                if (imageImported) {
                     log.debug("A file with the Name: " + strImage + " already exists for this process.");
                     Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
                             "A file with the Name: " + strImage + " already exists for this process.");
                     //                    continue;
                 }
+
+                //                if (existingImages.contains(strImage.replace(" ", "_"))) {
+                //                    log.debug("A file with the Name: " + strImage + " already exists for this process.");
+                //                    Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
+                //                            "A file with the Name: " + strImage + " already exists for this process.");
+                //                    //                    continue;
+                //                }
 
                 // remove file extension if configured so
                 if (ignoreFileExtension) {
@@ -218,18 +226,26 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     }
                 }
 
-                Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+                // try to import the image if not done yet
+                //                Result result = getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+                Result result = getResultPage(strImage, strProcessImageFolder, dd, iPageNumber, imageImported);
                 DocStruct page = result.getPage();
                 // OPTION_1: reserve the page numbers for unfound and unprocessed images 
-                iPageNumber++;
+                //                iPageNumber++;
                 // -> May result in an incontinuous order of images 
                 if (page != null) {
                     physical.addChild(page);
                     logical.addReferenceTo(page, "logical_physical");
-                    boImagesImported = true;
+                    //                    boImagesImported = true;
                     // OPTION_2: only count pages that are successfully processed
-                    //                    iPageNumber++; 
+                    iPageNumber++;
                     // -> May result in duplicated orders
+
+                    int position = physical.getPositionofChild(page);
+                    log.debug("position = " + position);
+
+                    //                    page.getAllMetadataByType(prefs.getMetadataTypeByName("physPageNumber"));
+
                 } else if (ignoreCopyErrors) {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
                 } else {
@@ -237,6 +253,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.ERROR, result.getMessage());
                     successfull = false;
                 }
+                
+                imageImported = imageImported || page != null;
+                //                iPageNumber += imageImported ? 1 : 0;
+
+                boImagesImported = boImagesImported || imageImported;
             }
 
             //and save the metadata again.
@@ -266,19 +287,55 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return PluginReturnValue.FINISH;
     }
 
+    private Result getResultPage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber, boolean imageExisting)
+            throws UGHException, IOException {
+
+        return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+    }
+
+    private Result getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
+        log.debug("getting existing image page");
+        strImage = strImage.replace(" ", "_");
+        List<DocStruct> pages = dd.getAllDocStructsByType("page");
+        for (DocStruct page : pages) {
+            String imageName = page.getImageName();
+            // only works if ignoreFileExtension is set true 
+            //            if (imageName.matches("\\Q" + strImage + "\\E" + "\\..*")) {
+            //                log.debug("imageName = " + imageName);
+            //                MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
+            //                Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
+            //                mdPhysPage.setValue(String.valueOf(iPageNumber));
+            //                return new Result("", page);
+            //            }
+            // only works if ignoreFileExtension is set false 
+            if (imageName.matches("\\Q" + strImage + "\\E")) {
+                log.debug("imageName = " + imageName);
+                MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
+                Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
+                mdPhysPage.setValue(String.valueOf(iPageNumber));
+                return new Result("", page);
+            }
+        }
+
+        return new Result("hello world", null);
+    }
+
     /**
      * Find the specified image file in the hashmap. If it is there, copy the file to a (new, if necessary) subfolder of the main folder, named after
      * the ID of the MetsMods file. Return a new DocStruct with the filename and the location of the file.
      */
     private Result getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
-
+        log.debug("getting and saving new page");
         // get matched image file
-        File file = getMatchedImageFile(strImage);
+        File file = getMatchedImageFile(strImage, this.folder);
         if (file == null) {
+            // no file found in the import folder, check if it is already imported
+            log.debug("file is null");
             return new Result("There was no file with the name:" + strImage + " in the images folder.", null);
         }
         if (!file.exists()) {
+            log.debug("file does not exist");
             return new Result("There was an error processing the file: " + strImage + " in the images folder.", null);
         }
 
@@ -291,9 +348,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return new Result("", dsPage);
     }
 
-    private File getMatchedImageFile(String strImage) {
+    private File getMatchedImageFile(String strImage, String folder) {
         List<Path> imagePaths = this.storageProvider.listFiles(folder, path -> {
-            return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*");
+            
+            //            return path.getFileName().toString().matches("\\Q" + strImage + "\\E" + "\\..*"); // only works if ignoreFileExtension is set true 
+            return path.getFileName().toString().matches("\\Q" + strImage + "\\E"); // only works if ignoreFileExtension is set false
         });
 
         // take the first match if there is any
