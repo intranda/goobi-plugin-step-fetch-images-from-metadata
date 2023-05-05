@@ -217,8 +217,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             return PluginReturnValue.ERROR;
         }
 
-        if (this.startExport && this.process != null) {
-            exportProcess(this.process, this.exportImages);
+        if (startExport && process != null) {
+            exportProcess(process, exportImages);
         }
 
         return PluginReturnValue.FINISH;
@@ -229,7 +229,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         DocStruct physical = dd.getPhysicalDocStruct();
 
         if (findExistingMetadata(physical, "pathimagefiles") == null) {
-            Metadata imagePath = new Metadata(this.prefs.getMetadataTypeByName("pathimagefiles"));
+            Metadata imagePath = new Metadata(prefs.getMetadataTypeByName("pathimagefiles"));
             imagePath.setValue(process.getConfiguredImageFolder("media"));
             physical.addMetadata(imagePath);
         }
@@ -338,7 +338,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     private File getMatchedImageFile(String strImage, String folder) {
         String regex = getRegularExpression(strImage);
-        List<Path> imagePaths = this.storageProvider.listFiles(folder, path -> {
+        List<Path> imagePaths = storageProvider.listFiles(folder, path -> {
             return path.getFileName().toString().matches(regex);
         });
 
@@ -349,7 +349,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private File saveImageFile(String strImage, String strProcessImageFolder, File file) throws IOException {
         // create subfolder for images, as necessary:
         Path path = Paths.get(strProcessImageFolder);
-        this.storageProvider.createDirectories(path);
+        storageProvider.createDirectories(path);
 
         // copy or move original file:
         Path pathSource = Paths.get(file.getAbsolutePath());
@@ -359,12 +359,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         switch (this.mode) {
             case "move":
-                this.storageProvider.move(pathSource, pathDest);
+                storageProvider.move(pathSource, pathDest);
                 Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, "Image moved into process folder: " + strImage);
                 break;
             case "copy":
             default:
-                this.storageProvider.copyFile(pathSource, pathDest);
+                storageProvider.copyFile(pathSource, pathDest);
                 Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG, "Image copied into process folder: " + strImage);
         }
 
@@ -403,7 +403,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String getRegularExpression(String strImage) {
         String base = "\\Q" + strImage + "\\E";
 
-        return base + (this.ignoreFileExtension ? "\\..*" : "");
+        return base + (ignoreFileExtension ? "\\..*" : "");
     }
 
     /**
