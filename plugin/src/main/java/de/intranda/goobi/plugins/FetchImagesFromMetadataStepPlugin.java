@@ -199,35 +199,18 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             List<String> existingImages = storageProvider.list(strProcessImageFolder);
 
             for (String strImage : lstImages) {
-
+                // strImage all have file extensions
                 log.debug("strImage = " + strImage);
 
-                // check if the image is already imported
-                boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
-                if (imageExisting) {
-                    log.debug("A file with the Name: " + strImage + " already exists for this process.");
-                    Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
-                            "A file with the Name: " + strImage + " already exists for this process.");
-                    //                    continue;
-                }
-
-                // remove file extension if configured so
-                if (ignoreFileExtension) {
-                    int index = strImage.lastIndexOf(".");
-                    if (index > 0) {
-                        strImage = strImage.substring(0, index);
-                    }
-                }
-
-                // try to import the image if not done yet
-                Result result = getResultPage(strImage, strProcessImageFolder, dd, iPageNumber, imageExisting);
+                // retrieve the existing page OR if it has not been imported yet, get and save it
+                Result result = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
                 DocStruct page = result.getPage();
 
                 if (page != null) {
                     // remove old infos
-                    logical.removeReferenceTo(page); // child will be removed automatically via this call
+                    logical.removeReferenceTo(page); // no need to remove the child
                     // add new infos
-                    physical.addChild(page);
+                    physical.addChild(page); // there won't be any duplicates if page was already added as a child  
                     logical.addReferenceTo(page, "logical_physical");
 
                     boImagesImported = true;
@@ -269,8 +252,23 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return PluginReturnValue.FINISH;
     }
 
-    private Result getResultPage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber, boolean imageExisting)
-            throws UGHException, IOException {
+    private Result getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
+            final List<String> existingImages) throws UGHException, IOException {
+        // check if the image was already imported
+        boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
+        if (imageExisting) {
+            log.debug("A file with the Name: " + strImage + " already exists for this process.");
+            Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
+                    "A file with the Name: " + strImage + " already exists for this process.");
+        }
+
+        // remove file extension if configured so
+        if (ignoreFileExtension) {
+            int index = strImage.lastIndexOf(".");
+            if (index > 0) {
+                strImage = strImage.substring(0, index);
+            }
+        }
 
         return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
     }
@@ -292,7 +290,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             }
         }
 
-        return new Result("hello world", null);
+        return new Result("Unable to retrieve the existing page.", null);
     }
 
     /**
