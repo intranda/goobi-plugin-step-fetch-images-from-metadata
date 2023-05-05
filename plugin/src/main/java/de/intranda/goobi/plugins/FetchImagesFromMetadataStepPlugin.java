@@ -73,10 +73,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String title = "intranda_step_fetch_images_from_metadata";
     @Getter
     private Step step;
-    @Getter
-    private String value;
-    @Getter
-    private boolean allowTaskFinishButtons;
+
     private String returnPath;
     private Process process;
     private Prefs prefs;
@@ -85,7 +82,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private boolean ignoreFileExtension;
     private String mode;
     private boolean ignoreCopyErrors;
-    private StorageProviderInterface storageProvider;
+    private transient StorageProviderInterface storageProvider;
     private boolean startExport;
     private boolean exportImages;
 
@@ -110,7 +107,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             folder = folder + "/";
         }
 
-        allowTaskFinishButtons = myconfig.getBoolean("allowTaskFinishButtons", false);
         log.info("FetchImagesFromMetadata step plugin initialized");
     }
 
@@ -121,6 +117,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public String getPagePath() {
+        // won't be used
         return "/uii/plugin_step_fetch_images_from_metadata.xhtml";
     }
 
@@ -131,11 +128,13 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public String cancel() {
+        // won't be used
         return "/uii" + returnPath;
     }
 
     @Override
     public String finish() {
+        // won't be used
         return "/uii" + returnPath;
     }
 
@@ -170,10 +169,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     public PluginReturnValue run() {
         boolean successfull = true;
 
-        Process proc = step.getProzess();
-        Fileformat fileformat;
         try {
-            fileformat = proc.readMetadataFile();
+            Fileformat fileformat = process.readMetadataFile();
 
             DigitalDocument dd = fileformat.getDigitalDocument();
             DocStruct physical = dd.getPhysicalDocStruct();
@@ -181,19 +178,19 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             if (findExistingMetadata(physical, "pathimagefiles") == null) {
                 Metadata imagePath = new Metadata(this.prefs.getMetadataTypeByName("pathimagefiles"));
-                imagePath.setValue(proc.getConfiguredImageFolder("media"));
+                imagePath.setValue(process.getConfiguredImageFolder("media"));
                 physical.addMetadata(imagePath);
             }
 
-            List<String> lstImages = MetadataManager.getAllMetadataValues(proc.getId(), imageMetadata);
+            List<String> lstImages = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
             //            Collections.sort(lstImages); // this line will reorder the images according to their names
 
             log.debug("lstImages has size = " + lstImages.size());
 
-            boolean boImagesImported = false;
+            boolean boImagesImported = false; // whether or not any images are imported by this run
 
             int iPageNumber = 1;
-            String strProcessImageFolder = proc.getConfiguredImageFolder("media");
+            String strProcessImageFolder = process.getConfiguredImageFolder("media");
 
             // get list with filenames in target directory
             List<String> existingImages = storageProvider.list(strProcessImageFolder);
@@ -219,7 +216,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 } else if (ignoreCopyErrors) {
                     Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
                 } else {
-                    log.error("Could not find image " + strImage + " for process " + proc.getTitel());
+                    log.error("Could not find image " + strImage + " for process " + process.getTitel());
                     Helper.addMessageToProcessJournal(process.getId(), LogType.ERROR, result.getMessage());
                     successfull = false;
                 }
@@ -229,8 +226,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             process.writeMetadataFile(fileformat);
 
             if (boImagesImported) {
-                Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, "added images to " + proc.getTitel());
-                log.info("Images imported for process " + proc.getTitel());
+                String message = "Images imported for process " + process.getTitel();
+                logBoth(process.getId(), LogType.INFO, message);
             }
 
             log.info("FetchImagesFromMetadata step plugin executed");
@@ -245,10 +242,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         }
 
         if (this.startExport && this.process != null) {
-
             exportProcess(this.process, this.exportImages);
-
         }
+
         return PluginReturnValue.FINISH;
     }
 
@@ -257,9 +253,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         // check if the image was already imported
         boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
         if (imageExisting) {
-            log.debug("A file with the Name: " + strImage + " already exists for this process.");
-            Helper.addMessageToProcessJournal(process.getId(), LogType.DEBUG,
-                    "A file with the Name: " + strImage + " already exists for this process.");
+            String message = "A file with the Name: " + strImage + " already exists for this process.";
+            logBoth(process.getId(), LogType.DEBUG, message);
         }
 
         // remove file extension if configured so
@@ -404,8 +399,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             export.setExportFulltext(false);
             export.setExportImages(exportImg);
             export.startExport(p);
-            log.info("Export finished inside of catalogue poller for process with ID " + p.getId());
-            Helper.addMessageToProcessJournal(p.getId(), LogType.DEBUG, "Process successfully exported by catalogue poller");
+
+            String message = "Export finished inside of catalogue poller for process with ID " + p.getId();
+            logBoth(p.getId(), LogType.DEBUG, message);
+
         } catch (NoSuchMethodError | Exception e) {
             log.error("Exception during the export of process " + p.getId(), e);
         }
@@ -427,9 +424,36 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return export;
     }
 
+    /**
+     * 
+     * @param processId
+     * @param logType
+     * @param message message to be shown to both terminal and journal
+     */
+    private void logBoth(int processId, LogType logType, String message) {
+        String logMessage = "Fetch Images From Metadata Step Plugin: " + message;
+        switch (logType) {
+            case ERROR:
+                log.error(logMessage);
+                break;
+            case DEBUG:
+                log.debug(logMessage);
+                break;
+            case WARN:
+                log.warn(logMessage);
+                break;
+            default: // INFO
+                log.info(logMessage);
+                break;
+        }
+        if (processId > 0) {
+            Helper.addMessageToProcessJournal(processId, logType, logMessage);
+        }
+    }
+
     @Data
     @AllArgsConstructor
-    public class Result {
+    private class Result {
         private String message;
         private DocStruct page;
     }
