@@ -396,16 +396,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      */
     private void exportProcess(Process p, boolean exportImg) {
         try {
-            IExportPlugin export = null;
-            String pluginName = ProcessManager.getExportPluginName(p.getId());
-            if (StringUtils.isNotEmpty(pluginName)) {
-                try {
-                    export = (IExportPlugin) PluginLoader.getPluginByTitle(PluginType.Export, pluginName);
-                } catch (Exception e) {
-                    log.error("Can't load export plugin, use default plugin", e);
-                    export = new ExportDms();
-                }
-            }
+            IExportPlugin export = getExportPluginOfProcess(p);
+
             if (export == null) {
                 export = new ExportDms();
             }
@@ -417,6 +409,22 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         } catch (NoSuchMethodError | Exception e) {
             log.error("Exception during the export of process " + p.getId(), e);
         }
+    }
+    
+    private IExportPlugin getExportPluginOfProcess(Process p) {
+        IExportPlugin export = null;
+        String pluginName = ProcessManager.getExportPluginName(p.getId());
+        
+        if (StringUtils.isNotEmpty(pluginName)) {
+            try {
+                export = (IExportPlugin) PluginLoader.getPluginByTitle(PluginType.Export, pluginName);
+            } catch (Exception e) {
+                log.error("Can't load export plugin, use default plugin", e);
+                export = new ExportDms();
+            }
+        }
+
+        return export;
     }
 
     @Data
