@@ -170,7 +170,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     @Override
     public PluginReturnValue run() {
-        boolean successfull = true;
+        boolean successful = true;
 
         try {
             Fileformat fileformat = process.readMetadataFile();
@@ -200,26 +200,14 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 // strImage all have file extensions
                 log.debug("strImage = " + strImage);
 
-                // retrieve the existing page OR if it has not been imported yet, get and save it
-                Result result = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
-                DocStruct page = result.getPage();
-
-                if (page != null) {
-                    // remove old infos
-                    logical.removeReferenceTo(page); // no need to remove the child
-                    // add new infos
-                    physical.addChild(page); // there won't be any duplicates if page was already added as a child  
-                    logical.addReferenceTo(page, "logical_physical");
-
+                // process the image page named strImage
+                boolean processResult = processImagePageByName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
+                if (processResult) {
                     iPageNumber++;
-
-                } else if (ignoreCopyErrors) {
-                    Helper.addMessageToProcessJournal(process.getId(), LogType.INFO, result.getMessage());
-                } else {
-                    log.error("Could not find image " + strImage + " for process " + process.getTitel());
-                    Helper.addMessageToProcessJournal(process.getId(), LogType.ERROR, result.getMessage());
-                    successfull = false;
                 }
+
+                // processResult only counts when ignoreCopyErrors is set false
+                successful = successful && (ignoreCopyErrors || processResult);
             }
 
             //and save the metadata again.
@@ -234,10 +222,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         } catch (IOException | SwapException | DAOException | UGHException e) {
             log.error(e);
-            successfull = false;
+            successful = false;
         }
 
-        if (!successfull) {
+        if (!successful) {
             return PluginReturnValue.ERROR;
         }
 
@@ -246,6 +234,30 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         }
 
         return PluginReturnValue.FINISH;
+    }
+
+    private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
+            List<String> existingImages) throws UGHException, IOException {
+        // retrieve the existing page OR if it has not been imported yet, get and save it
+        Result result = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
+        DocStruct page = result.getPage();
+
+        if (page == null) {
+            String message = "Could not find image " + strImage + " for process " + process.getTitel();
+            LogType logType = ignoreCopyErrors ? LogType.INFO : LogType.ERROR;
+            logBoth(process.getId(), logType, message);
+            return false;
+        }
+
+        DocStruct physical = dd.getPhysicalDocStruct();
+        DocStruct logical = dd.getLogicalDocStruct();
+        // remove old infos
+        logical.removeReferenceTo(page); // no need to remove the child
+        // add new infos
+        physical.addChild(page); // there won't be any duplicates if page was already added as a child  
+        logical.addReferenceTo(page, "logical_physical");
+
+        return true;
     }
 
     private Result getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
