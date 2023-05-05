@@ -172,20 +172,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         try {
             Fileformat fileformat = process.readMetadataFile();
-
-            DigitalDocument dd = fileformat.getDigitalDocument();
-            DocStruct physical = dd.getPhysicalDocStruct();
-            DocStruct logical = dd.getLogicalDocStruct();
-
-            if (findExistingMetadata(physical, "pathimagefiles") == null) {
-                Metadata imagePath = new Metadata(this.prefs.getMetadataTypeByName("pathimagefiles"));
-                imagePath.setValue(process.getConfiguredImageFolder("media"));
-                physical.addMetadata(imagePath);
-            }
+            DigitalDocument dd = prepareDigitalDocument(fileformat);
 
             List<String> lstImages = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
             //            Collections.sort(lstImages); // this line will reorder the images according to their names
-
             log.debug("lstImages has size = " + lstImages.size());
 
             int iPageNumber = 1;
@@ -234,9 +224,22 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return PluginReturnValue.FINISH;
     }
 
+    private DigitalDocument prepareDigitalDocument(Fileformat fileformat) throws UGHException, IOException, SwapException, DAOException {
+        DigitalDocument dd = fileformat.getDigitalDocument();
+        DocStruct physical = dd.getPhysicalDocStruct();
+
+        if (findExistingMetadata(physical, "pathimagefiles") == null) {
+            Metadata imagePath = new Metadata(this.prefs.getMetadataTypeByName("pathimagefiles"));
+            imagePath.setValue(process.getConfiguredImageFolder("media"));
+            physical.addMetadata(imagePath);
+        }
+
+        return dd;
+    }
+
     private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
-            List<String> existingImages) throws UGHException, IOException {
-        // retrieve the existing page OR if it has not been imported yet, get and save it
+            final List<String> existingImages) throws UGHException, IOException {
+        // get the page by its name strImage
         DocStruct page = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
 
         if (page == null) {
@@ -274,6 +277,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             }
         }
 
+        // retrieve the existing page OR if it has not been imported yet, get and save it
         return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
     }
 
