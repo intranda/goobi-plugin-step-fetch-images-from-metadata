@@ -50,8 +50,6 @@ import de.sub.goobi.helper.exceptions.DAOException;
 import de.sub.goobi.helper.exceptions.SwapException;
 import de.sub.goobi.persistence.managers.MetadataManager;
 import de.sub.goobi.persistence.managers.ProcessManager;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import net.xeoh.plugins.base.annotations.PluginImplementation;
@@ -239,8 +237,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
             List<String> existingImages) throws UGHException, IOException {
         // retrieve the existing page OR if it has not been imported yet, get and save it
-        Result result = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
-        DocStruct page = result.getPage();
+        DocStruct page = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
 
         if (page == null) {
             String message = "Could not find image " + strImage + " for process " + process.getTitel();
@@ -260,7 +257,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return true;
     }
 
-    private Result getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
+    private DocStruct getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
             final List<String> existingImages) throws UGHException, IOException {
         // check if the image was already imported
         boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
@@ -280,7 +277,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
     }
 
-    private Result getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
+    private DocStruct getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
         log.debug("getting existing image page");
         strImage = strImage.replace(" ", "_");
         String regex = getRegularExpression(strImage);
@@ -293,30 +290,34 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
                 Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
                 mdPhysPage.setValue(String.valueOf(iPageNumber));
-                return new Result("", page);
+                return page;
             }
         }
 
-        return new Result("Unable to retrieve the existing page.", null);
+        String message = "Unable to retrieve the existing page named: " + strImage;
+        logBoth(process.getId(), LogType.ERROR, message);
+        return null;
     }
 
     /**
      * Find the specified image file in the hashmap. If it is there, copy the file to a (new, if necessary) subfolder of the main folder, named after
      * the ID of the MetsMods file. Return a new DocStruct with the filename and the location of the file.
      */
-    private Result getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
+    private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
         log.debug("getting and saving new page");
         // get matched image file
         File file = getMatchedImageFile(strImage, this.folder);
         if (file == null) {
-            // no file found in the import folder, check if it is already imported
-            log.debug("file is null");
-            return new Result("There was no file with the name:" + strImage + " in the images folder.", null);
+            // no file found in the import folder
+            String message = "There was no file with the name: " + strImage + " in the images folder.";
+            logBoth(process.getId(), LogType.DEBUG, message);
+            return null;
         }
         if (!file.exists()) {
-            log.debug("file does not exist");
-            return new Result("There was an error processing the file: " + strImage + " in the images folder.", null);
+            String message = "There was an error processing the file: " + strImage + " in the images folder.";
+            logBoth(process.getId(), LogType.ERROR, message);
+            return null;
         }
 
         // save the image file
@@ -328,7 +329,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         // set the flag
         imagesImported = true;
 
-        return new Result("", dsPage);
+        return dsPage;
     }
 
     private File getMatchedImageFile(String strImage, String folder) {
@@ -464,13 +465,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         if (processId > 0) {
             Helper.addMessageToProcessJournal(processId, logType, logMessage);
         }
-    }
-
-    @Data
-    @AllArgsConstructor
-    private class Result {
-        private String message;
-        private DocStruct page;
     }
 
 }
