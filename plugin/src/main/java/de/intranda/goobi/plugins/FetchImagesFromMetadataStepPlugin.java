@@ -66,6 +66,7 @@ import ugh.exceptions.UGHException;
 @PluginImplementation
 @Log4j2
 public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
+    private static final long serialVersionUID = 1L;
 
     @Getter
     private String title = "intranda_step_fetch_images_from_metadata";
@@ -75,17 +76,25 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private String returnPath;
     private Process process;
     private Prefs prefs;
-    private String imageMetadata;
-    private String folder;
-    private boolean ignoreFileExtension;
-    private String mode;
-    private boolean ignoreCopyErrors;
-    private transient StorageProviderInterface storageProvider;
-    private boolean startExport;
-    private boolean exportImages;
 
-    // whether or not any images are imported by this run
+    // name of the Metadata in the METS file that is used to hold the names of the to-be-imported images
+    private String imageMetadata;
+    // the source folder for the import
+    private String folder;
+    // copy | move
+    private String mode;
+    // true if file extension is to be ignored, false otherwise
+    private boolean ignoreFileExtension;
+    // true if errors happened while copying files should be ignored, false otherwise
+    private boolean ignoreCopyErrors;
+    // true if the process should be exported by the end of import, false otherwise
+    private boolean startExport;
+    // true if the images should be exported by the export plugin, false otherwise
+    private boolean exportImages;
+    // true if any images are imported by this run, false otherwise
     private boolean imagesImported = false;
+
+    private transient StorageProviderInterface storageProvider;
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -155,17 +164,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return ret != PluginReturnValue.ERROR;
     }
 
-    private String findExistingMetadata(DocStruct physical, String elementType) {
-        if (physical.getAllMetadata() != null) {
-            for (Metadata md : physical.getAllMetadata()) {
-                if (md.getType().getName().equals(elementType)) {
-                    return md.getValue();
-                }
-            }
-        }
-        return null;
-    }
-
     @Override
     public PluginReturnValue run() {
         boolean successful = true;
@@ -224,6 +222,16 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return PluginReturnValue.FINISH;
     }
 
+    /**
+     * prepare the DigitalDocument object that is to be used
+     * 
+     * @param fileformat Fileformat
+     * @return the prepared DigitalDocument object
+     * @throws UGHException
+     * @throws IOException
+     * @throws SwapException
+     * @throws DAOException
+     */
     private DigitalDocument prepareDigitalDocument(Fileformat fileformat) throws UGHException, IOException, SwapException, DAOException {
         DigitalDocument dd = fileformat.getDigitalDocument();
         DocStruct physical = dd.getPhysicalDocStruct();
@@ -237,6 +245,36 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return dd;
     }
 
+    /**
+     * get the value of an existing Metadata
+     * 
+     * @param ds DocStruct whose Metadata should be searched
+     * @param elementType name of MetadataType
+     * @return value of the Metadata if successfully found, null otherwise
+     */
+    private String findExistingMetadata(DocStruct ds, String elementType) {
+        if (ds.getAllMetadata() != null) {
+            for (Metadata md : ds.getAllMetadata()) {
+                if (md.getType().getName().equals(elementType)) {
+                    return md.getValue();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * process the image page by its name
+     * 
+     * @param strImage name of the image
+     * @param strProcessImageFolder media folder of the process
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of this page
+     * @param existingImages list of images that were already imported before this run
+     * @return true if the image is successfully retrieved or created, false otherwise
+     * @throws UGHException
+     * @throws IOException
+     */
     private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
             final List<String> existingImages) throws UGHException, IOException {
         // get the page by its name strImage
@@ -260,6 +298,18 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return true;
     }
 
+    /**
+     * get the image page by its name
+     * 
+     * @param strImage name of the image
+     * @param strProcessImageFolder media folder of the process
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of this page
+     * @param existingImages list of images that were already imported before this run
+     * @return the page as a DocStruct object
+     * @throws UGHException
+     * @throws IOException
+     */
     private DocStruct getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
             final List<String> existingImages) throws UGHException, IOException {
         // check if the image was already imported
@@ -281,6 +331,14 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
     }
 
+    /**
+     * get the existing image page by its name
+     * 
+     * @param strImage name of the image
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of this page
+     * @return the existing page as a DocStruct object
+     */
     private DocStruct getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
         log.debug("getting existing image page");
         strImage = strImage.replace(" ", "_");
@@ -288,6 +346,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         List<DocStruct> pages = dd.getAllDocStructsByType("page");
         for (DocStruct page : pages) {
             String imageName = page.getImageName();
+            log.debug("imageName = " + imageName);
 
             if (imageName.matches(regex)) {
                 log.debug("imageName = " + imageName);
@@ -304,8 +363,15 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     /**
-     * Find the specified image file in the hashmap. If it is there, copy the file to a (new, if necessary) subfolder of the main folder, named after
-     * the ID of the MetsMods file. Return a new DocStruct with the filename and the location of the file.
+     * get and save the specified image file from the import folder if it is there
+     * 
+     * @param strImage name of the image
+     * @param strProcessImageFolder media folder of the process
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of the page
+     * @return the new page as a DocStruct object if it is successfully imported, otherwise null
+     * @throws UGHException
+     * @throws IOException
      */
     private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
@@ -336,6 +402,13 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return dsPage;
     }
 
+    /**
+     * get the image file from the import folder that matches the input name
+     * 
+     * @param strImage name of the image
+     * @param folder path of the import folder
+     * @return the image file as a File object
+     */
     private File getMatchedImageFile(String strImage, String folder) {
         String regex = getRegularExpression(strImage);
         List<Path> imagePaths = storageProvider.listFiles(folder, path -> {
@@ -346,6 +419,15 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return imagePaths.isEmpty() ? null : imagePaths.get(0).toFile();
     }
 
+    /**
+     * import the matched image file to the media folder
+     * 
+     * @param strImage name of the image
+     * @param strProcessImageFolder media folder of the process
+     * @param file the matched image file
+     * @return the copied file as a File object
+     * @throws IOException
+     */
     private File saveImageFile(String strImage, String strProcessImageFolder, File file) throws IOException {
         // create subfolder for images, as necessary:
         Path path = Paths.get(strProcessImageFolder);
@@ -371,6 +453,17 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return new File(pathDest.toString());
     }
 
+    /**
+     * create a DocStruct object for the image page
+     * 
+     * @param fileCopy the copy of the imported image file
+     * @param strImage name of the image
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of the image page
+     * @return the page as a DocStruct object
+     * @throws UGHException
+     * @throws IOException
+     */
     private DocStruct createDocStructPage(File fileCopy, String strImage, DigitalDocument dd, int iPageNumber) throws UGHException, IOException {
         DocStructType pageType = prefs.getDocStrctTypeByName("page");
         DocStruct dsPage = dd.createDocStruct(pageType);
@@ -400,6 +493,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return dsPage;
     }
 
+    /**
+     * get the proper regular expression
+     * 
+     * @param strImage name of the image
+     * @return the proper regular expression as a string
+     */
     private String getRegularExpression(String strImage) {
         String base = "\\Q" + strImage + "\\E";
 
@@ -408,8 +507,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
     /**
      * Do the export of the process
+     * 
+     * @param p Goobi process
+     * @param exportImage true if the images should be exported, false otherwise
      */
-    private void exportProcess(Process p, boolean exportImg) {
+    private void exportProcess(Process p, boolean exportImage) {
         try {
             IExportPlugin export = getExportPluginOfProcess(p);
 
@@ -417,7 +519,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 export = new ExportDms();
             }
             export.setExportFulltext(false);
-            export.setExportImages(exportImg);
+            export.setExportImages(exportImage);
             export.startExport(p);
 
             String message = "Export finished inside of catalogue poller for process with ID " + p.getId();
@@ -428,6 +530,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
     
+    /**
+     * get the export plugin for this process
+     * 
+     * @param p Goobi process
+     * @return the export plugin for this process if there is any found for this process, otherwise null
+     */
     private IExportPlugin getExportPluginOfProcess(Process p) {
         IExportPlugin export = null;
         String pluginName = ProcessManager.getExportPluginName(p.getId());
@@ -445,9 +553,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     /**
+     * print logs to terminal and journal
      * 
-     * @param processId
-     * @param logType
+     * @param processId id of the Goobi process
+     * @param logType type of the log
      * @param message message to be shown to both terminal and journal
      */
     private void logBoth(int processId, LogType logType, String message) {
