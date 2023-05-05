@@ -203,22 +203,19 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             successful = false;
         }
 
-        if (!successful) {
-            return PluginReturnValue.ERROR;
-        }
-
         if (imagesImported) {
             String message = "Images imported for process " + process.getTitel();
             logBoth(process.getId(), LogType.INFO, message);
         }
 
         if (startExport && process != null) {
-            exportProcess(process, exportImages);
+            // export the process only if everything has been fine so far
+            successful = successful && exportProcess(process, exportImages);
         }
 
         log.info("FetchImagesFromMetadata step plugin executed");
 
-        return PluginReturnValue.FINISH;
+        return successful ? PluginReturnValue.FINISH : PluginReturnValue.ERROR;
     }
 
     /**
@@ -509,8 +506,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * 
      * @param p Goobi process
      * @param exportImage true if the images should be exported, false otherwise
+     * @return true if the process is successfully exported, false if any exceptions should happen
      */
-    private void exportProcess(Process p, boolean exportImage) {
+    private boolean exportProcess(Process p, boolean exportImage) {
         try {
             IExportPlugin export = getExportPluginOfProcess(p);
 
@@ -523,9 +521,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             String message = "Export finished inside of catalogue poller for process with ID " + p.getId();
             logBoth(p.getId(), LogType.DEBUG, message);
+            return true;
 
         } catch (NoSuchMethodError | Exception e) {
             log.error("Exception during the export of process " + p.getId(), e);
+            return false;
         }
     }
     
