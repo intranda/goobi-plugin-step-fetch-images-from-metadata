@@ -25,7 +25,9 @@ import java.nio.file.Paths;
  */
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.configuration.SubnodeConfiguration;
 import org.apache.commons.lang.StringUtils;
@@ -178,33 +180,23 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             int iPageNumber = 1;
             String strProcessImageFolder = process.getConfiguredImageFolder("media");
-
-            // get list with filenames in target directory
-            List<String> existingImages = storageProvider.list(strProcessImageFolder);
+            // get a set of filenames in target directory
+            Set<String> existingImages = new HashSet<String>(storageProvider.list(strProcessImageFolder));
 
             for (String strImage : lstImages) {
                 // strImage all have file extensions
                 log.debug("strImage = " + strImage);
-
                 // process the image page named strImage
                 boolean processResult = processImagePageByName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
                 if (processResult) {
                     iPageNumber++;
                 }
-
                 // processResult only counts when ignoreCopyErrors is set false
                 successful = successful && (ignoreCopyErrors || processResult);
             }
 
-            //and save the metadata again.
+            // save the metadata
             process.writeMetadataFile(fileformat);
-
-            if (imagesImported) {
-                String message = "Images imported for process " + process.getTitel();
-                logBoth(process.getId(), LogType.INFO, message);
-            }
-
-            log.info("FetchImagesFromMetadata step plugin executed");
 
         } catch (IOException | SwapException | DAOException | UGHException e) {
             log.error(e);
@@ -215,9 +207,16 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             return PluginReturnValue.ERROR;
         }
 
+        if (imagesImported) {
+            String message = "Images imported for process " + process.getTitel();
+            logBoth(process.getId(), LogType.INFO, message);
+        }
+
         if (startExport && process != null) {
             exportProcess(process, exportImages);
         }
+
+        log.info("FetchImagesFromMetadata step plugin executed");
 
         return PluginReturnValue.FINISH;
     }
@@ -276,7 +275,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @throws IOException
      */
     private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
-            final List<String> existingImages) throws UGHException, IOException {
+            final Set<String> existingImages) throws UGHException, IOException {
         // get the page by its name strImage
         DocStruct page = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
 
@@ -311,7 +310,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @throws IOException
      */
     private DocStruct getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
-            final List<String> existingImages) throws UGHException, IOException {
+            final Set<String> existingImages) throws UGHException, IOException {
         // check if the image was already imported
         boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
         if (imageExisting) {
