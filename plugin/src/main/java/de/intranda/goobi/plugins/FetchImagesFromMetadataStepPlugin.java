@@ -86,6 +86,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private boolean startExport;
     private boolean exportImages;
 
+    // whether or not any images are imported by this run
+    private boolean imagesImported = false;
+
     @Override
     public void initialize(Step step, String returnPath) {
         this.returnPath = returnPath;
@@ -187,8 +190,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             log.debug("lstImages has size = " + lstImages.size());
 
-            boolean boImagesImported = false; // whether or not any images are imported by this run
-
             int iPageNumber = 1;
             String strProcessImageFolder = process.getConfiguredImageFolder("media");
 
@@ -210,7 +211,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                     physical.addChild(page); // there won't be any duplicates if page was already added as a child  
                     logical.addReferenceTo(page, "logical_physical");
 
-                    boImagesImported = true;
                     iPageNumber++;
 
                 } else if (ignoreCopyErrors) {
@@ -225,7 +225,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             //and save the metadata again.
             process.writeMetadataFile(fileformat);
 
-            if (boImagesImported) {
+            if (imagesImported) {
                 String message = "Images imported for process " + process.getTitel();
                 logBoth(process.getId(), LogType.INFO, message);
             }
@@ -312,6 +312,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         // create the page's DocStruct
         DocStruct dsPage = createDocStructPage(fileCopy, strImage, dd, iPageNumber);
+
+        // set the flag
+        imagesImported = true;
 
         return new Result("", dsPage);
     }
@@ -431,7 +434,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @param message message to be shown to both terminal and journal
      */
     private void logBoth(int processId, LogType logType, String message) {
-        String logMessage = "Fetch Images From Metadata Step Plugin: " + message;
+        String logMessage = "FetchImagesFromMetadata Step Plugin: " + message;
         switch (logType) {
             case ERROR:
                 log.error(logMessage);
