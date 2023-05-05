@@ -96,7 +96,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     // true if any images are imported by this run, false otherwise
     private boolean imagesImported = false;
 
-    private transient StorageProviderInterface storageProvider;
+    private static StorageProviderInterface storageProvider = StorageProvider.getInstance();
 
     @Override
     public void initialize(Step step, String returnPath) {
@@ -104,7 +104,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.step = step;
         this.process = step.getProzess();
         this.prefs = process.getRegelsatz().getPreferences();
-        this.storageProvider = StorageProvider.getInstance();
 
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
@@ -181,7 +180,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             int iPageNumber = 1;
             String strProcessImageFolder = process.getConfiguredImageFolder("media");
             // get a set of filenames in target directory
-            Set<String> existingImages = new HashSet<String>(storageProvider.list(strProcessImageFolder));
+            Set<String> existingImages = new HashSet<>(storageProvider.list(strProcessImageFolder));
 
             for (String strImage : lstImages) {
                 // strImage all have file extensions
@@ -336,16 +335,13 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @return the existing page as a DocStruct object
      */
     private DocStruct getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
-        log.debug("getting existing image page");
+        log.debug("getting existing image page: " + strImage);
         strImage = strImage.replace(" ", "_");
         String regex = getRegularExpression(strImage);
         List<DocStruct> pages = dd.getAllDocStructsByType("page");
         for (DocStruct page : pages) {
             String imageName = page.getImageName();
-            log.debug("imageName = " + imageName);
-
             if (imageName.matches(regex)) {
-                log.debug("imageName = " + imageName);
                 MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
                 Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
                 mdPhysPage.setValue(String.valueOf(iPageNumber));
@@ -371,7 +367,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      */
     private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
-        log.debug("getting and saving new page");
+        log.debug("getting and saving new page: " + strImage);
         // get matched image file
         File file = getMatchedImageFile(strImage, this.folder);
         if (file == null) {
@@ -407,9 +403,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      */
     private File getMatchedImageFile(String strImage, String folder) {
         String regex = getRegularExpression(strImage);
-        List<Path> imagePaths = storageProvider.listFiles(folder, path -> {
-            return path.getFileName().toString().matches(regex);
-        });
+        List<Path> imagePaths = storageProvider.listFiles(folder, path -> path.getFileName().toString().matches(regex));
 
         // take the first match if there is any
         return imagePaths.isEmpty() ? null : imagePaths.get(0).toFile();
