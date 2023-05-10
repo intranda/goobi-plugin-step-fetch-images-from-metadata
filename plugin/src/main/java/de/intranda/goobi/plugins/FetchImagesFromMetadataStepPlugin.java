@@ -407,9 +407,16 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         for (DocStruct page : pages) {
             String imageName = page.getImageName();
             if (imageName.matches(regex)) {
+                // physical page number : update the number
                 MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
                 Metadata mdPhysPage = page.getAllMetadataByType(typePhysPage).get(0);
                 mdPhysPage.setValue(String.valueOf(iPageNumber));
+
+                // logical page number : update the file name
+                MetadataType typeLogPage = prefs.getMetadataTypeByName("logicalPageNumber");
+                Metadata mdLogPage = page.getAllMetadataByType(typeLogPage).get(0);
+                mdLogPage.setValue(strImage);
+
                 return page;
             }
         }
@@ -532,7 +539,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         // logical page number : take the file name
         MetadataType typeLogPage = prefs.getMetadataTypeByName("logicalPageNumber");
         Metadata mdLogPage = new Metadata(typeLogPage);
-        mdLogPage.setValue(strImage);
+        mdLogPage.setValue(strImage.replace(" ", "_"));
         dsPage.addMetadata(mdLogPage);
 
         // content file
