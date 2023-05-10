@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 
 /**
  * This file is part of a plugin for Goobi - a Workflow tool for the support of mass digitization.
@@ -173,14 +174,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             Fileformat fileformat = process.readMetadataFile();
             DigitalDocument dd = prepareDigitalDocument(fileformat);
 
-            List<String> lstImages = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
-            //            Collections.sort(lstImages); // this line will reorder the images according to their names
-            log.debug("lstImages has size = " + lstImages.size());
-
-            int iPageNumber = 1;
             String strProcessImageFolder = process.getConfiguredImageFolder("media");
             // get a set of filenames in target directory
             Set<String> existingImages = new HashSet<>(storageProvider.list(strProcessImageFolder));
+
+            List<String> lstImages = getImageNamesList(dd);
+            int iPageNumber = 1;
 
             for (String strImage : lstImages) {
                 // strImage all have file extensions
@@ -238,6 +237,72 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         }
 
         return dd;
+    }
+
+    /**
+     * get a sorted list of image names from the Mets file
+     * 
+     * @param dd DigitalDocument
+     * @return the sorted list of image names from the Mets file
+     */
+    private List<String> getImageNamesList(DigitalDocument dd) {
+        List<String> lstImages = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
+        log.debug("lstImages has size = " + lstImages.size());
+
+        DocStruct logical = dd.getLogicalDocStruct();
+
+        String inventoryNumber = findExistingMetadata(logical, "InventoryNumber");
+        log.debug("inventoryNumber = " + inventoryNumber);
+
+        String serialNumber = findExistingMetadata(logical, "SerialNumber");
+        log.debug("serialNumber = " + serialNumber);
+
+        String firstImageName = inventoryNumber + " Nr_" + serialNumber;
+        log.debug("firstPageName = " + firstImageName);
+
+        // locate the candidate name for the first image
+        int index = getIndexOfImage(lstImages, firstImageName);
+        if (index < 0) {
+            index = getIndexOfImage(lstImages, firstImageName.replace(" ", "_"));
+        }
+        log.debug("index = " + index);
+
+        String firstImage = null;
+        if (index >= 0) {
+            // prepare to change position of the found image
+            firstImage = lstImages.remove(index);
+        } else {
+            // no match found, proceed as usual
+            log.debug("The proposed pattern did not show up this time. Proceed using default settings.");
+        }
+
+        // sort the images according to their names
+        Collections.sort(lstImages);
+
+        // put the found image to No.1
+        if (StringUtils.isNotBlank(firstImage)) {
+            lstImages.add(0, firstImage);
+        }
+
+        return lstImages;
+    }
+
+    /**
+     * get the index of the input imageName among the input list of names
+     * 
+     * @param lstImages list of image names
+     * @param imageName the image name that should be located in the list
+     * @return the index of imageName in lstImages
+     */
+    private int getIndexOfImage(List<String> lstImages, String imageName) {
+        for (int i = 0; i < lstImages.size(); ++i) {
+            String image = lstImages.get(i);
+            if (image.startsWith(imageName)) {
+                return i;
+            }
+        }
+        
+        return -1;
     }
 
     /**
