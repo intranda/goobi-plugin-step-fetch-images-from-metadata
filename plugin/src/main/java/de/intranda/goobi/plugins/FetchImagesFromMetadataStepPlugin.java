@@ -190,7 +190,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             Set<String> existingImages = new HashSet<>(storageProvider.list(processImageFolder));
 
             // process images by their names or by their urls
-            successful = useUrl ? processImagesByUrls(processImageFolder, dd) : processImagesByNames(processImageFolder, dd, existingImages);
+            successful = processImages(processImageFolder, dd, existingImages);
 
             // save the metadata
             process.writeMetadataFile(fileformat);
@@ -238,54 +238,28 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return dd;
     }
 
-    private boolean processImagesByUrls(String processImageFolder, DigitalDocument dd) {
-        boolean successful = true;
+    private String getImageNameFromUrl(URL url) {
+        String urlFileName = url.getFile();
+        log.debug("urlFileName = " + urlFileName);
 
-        // get a list of urls 
-        List<String> urls = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
-        int iPageNumber = 1;
+        String imageName = urlFileName.replaceAll("\\W", "_") + imageExtension;
+        log.debug("imageName = " + imageName);
 
-        // iterate over the list, check every url to see if it is already downloaded, if not download it and name it using the last part of its url
-        for (String url : urls) {
-            log.debug("downloading image from url: " + url);
-            boolean processResult = processImagePageByUrl(url, processImageFolder, iPageNumber);
-            if (processResult) {
-                iPageNumber++;
-            }
-            // processResult only counts when ignoreCopyErrors is set false
-            successful = successful && (ignoreCopyErrors || processResult);
-        }
-
-        return successful;
+        return imageName;
     }
 
-    private boolean processImagePageByUrl(String strUrl, String processImageFolder, int iPageNumber) {
+    private String getImageNameFromUrl(String strUrl) {
         try {
             URL url = new URL(strUrl);
-            ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
-
-            Path targetPath = Path.of(processImageFolder, String.valueOf(iPageNumber) + imageExtension);
-
-            FileOutputStream outputStream = new FileOutputStream(targetPath.toString());
-            FileChannel fileChannel = outputStream.getChannel();
-
-            fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
-            return true;
-
+            return getImageNameFromUrl(url);
         } catch (MalformedURLException e) {
-            String message = "The url '" + strUrl + "' is malformed.";
-            logBoth(process.getId(), LogType.ERROR, message);
-            return false;
-
-        } catch (IOException e) {
-            String message = "IOException happened while trying to download the image from: " + strUrl;
-            logBoth(process.getId(), LogType.ERROR, message);
-            return false;
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            return null;
         }
     }
 
-
-    private boolean processImagesByNames(String processImageFolder, DigitalDocument dd, Set<String> existingImages) throws UGHException, IOException {
+    private boolean processImages(String processImageFolder, DigitalDocument dd, Set<String> existingImages) throws UGHException, IOException {
         boolean successful = true;
 
         List<String> lstImages = getImageNamesList(dd);
@@ -315,6 +289,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private List<String> getImageNamesList(DigitalDocument dd) {
         List<String> lstImages = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
         log.debug("lstImages has size = " + lstImages.size());
+
+        if (useUrl) {
+            // no need to order the items
+            return lstImages;
+        }
 
         DocStruct logical = dd.getLogicalDocStruct();
 
@@ -440,22 +419,55 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private DocStruct getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
             final Set<String> existingImages) throws UGHException, IOException {
         // check if the image was already imported
-        boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
+        //        boolean imageExisting = existingImages.contains(strImage.replace(" ", "_"));
+        boolean imageExisting = checkExistenceOfImage(strImage, existingImages);
         if (imageExisting) {
-            String message = "A file with the Name: " + strImage + " already exists for this process.";
+            String message = "A file with the Name: " + getImageNameFromString(strImage) + " already exists for this process.";
             logBoth(process.getId(), LogType.DEBUG, message);
         }
 
         // remove file extension if configured so
-        if (ignoreFileExtension) {
+        if (!useUrl && ignoreFileExtension) {
             int index = strImage.lastIndexOf(".");
             if (index > 0) {
                 strImage = strImage.substring(0, index);
             }
         }
+        //        strImage = parseStrImage(strImage);
 
         // retrieve the existing page OR if it has not been imported yet, get and save it
         return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+    }
+
+    private DocStruct getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
+        String imageName = useUrl ? getImageNameFromUrl(strImage) : strImage;
+
+        return getExistingPageByName(imageName, dd, iPageNumber);
+        //        return useUrl ? getExistingPageFromUrl(strImage, dd, iPageNumber) : getExistingPageFromFolder(strImage, dd, iPageNumber);
+    }
+
+    private boolean checkExistenceOfImage(String strImage, final Set<String> existingImages) {
+        String imageName = getImageNameFromString(strImage);
+
+        return existingImages.contains(imageName.replace(" ", "_"));
+    }
+
+    private String getImageNameFromString(String strImage) {
+        return useUrl ? getImageNameFromUrl(strImage) : strImage;
+    }
+
+    private String parseStrImage(String strImage) {
+        if (useUrl) {
+            return getImageNameFromUrl(strImage);
+        }
+
+        if (!ignoreFileExtension) {
+            return strImage;
+        }
+
+        // file extension should be ignored
+        int index = strImage.lastIndexOf(".");
+        return index > 0 ? strImage.substring(0, index) : strImage;
     }
 
     /**
@@ -466,7 +478,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @param iPageNumber physical order of this page
      * @return the existing page as a DocStruct object
      */
-    private DocStruct getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
+    private DocStruct getExistingPageByName(String strImage, DigitalDocument dd, int iPageNumber) {
         log.debug("getting existing image page: " + strImage);
         strImage = strImage.replace(" ", "_");
         String regex = getRegularExpression(strImage);
@@ -493,6 +505,26 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return null;
     }
 
+    private DocStruct getAndSavePage(String strImage, String processImageFolder, DigitalDocument dd, int iPageNumber)
+            throws UGHException, IOException {
+        return useUrl ? getAndSavePageFromUrl(strImage, processImageFolder, dd, iPageNumber)
+                : getAndSavePageFromFolder(strImage, processImageFolder, dd, iPageNumber);
+    }
+
+    private DocStruct getAndSavePageFromUrl(String strImage, String processImageFolder, DigitalDocument dd, int iPageNumber)
+            throws IOException, UGHException {
+        // download the file from url
+        File fileCopy = downloadImageFile(strImage, processImageFolder);
+
+        // create the page's DocStruct
+        DocStruct dsPage = createDocStructPage(fileCopy, strImage, dd, iPageNumber);
+
+        // set the flag
+        imagesImported = true;
+
+        return dsPage;
+    }
+
     /**
      * get and save the specified image file from the import folder if it is there
      * 
@@ -504,7 +536,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @throws UGHException
      * @throws IOException
      */
-    private DocStruct getAndSavePage(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
+    private DocStruct getAndSavePageFromFolder(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
         log.debug("getting and saving new page: " + strImage);
         // get matched image file
@@ -546,6 +578,24 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         // take the first match if there is any
         return imagePaths.isEmpty() ? null : imagePaths.get(0).toFile();
+    }
+
+    private File downloadImageFile(String strUrl, String processImageFolder) throws IOException {
+        log.debug("downloading image from url: " + strUrl);
+        URL url = new URL(strUrl);
+        String imageName = getImageNameFromUrl(url);
+
+        ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+
+        //            Path targetPath = Path.of(processImageFolder, String.valueOf(iPageNumber) + imageExtension);
+        Path targetPath = Path.of(processImageFolder, imageName);
+
+        FileOutputStream outputStream = new FileOutputStream(targetPath.toString());
+        FileChannel fileChannel = outputStream.getChannel();
+
+        fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+
+        return new File(targetPath.toString());
     }
 
     /**
