@@ -1,7 +1,13 @@
 package de.intranda.goobi.plugins;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -97,6 +103,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     // true if any images are imported by this run, false otherwise
     private boolean imagesImported = false;
 
+    private boolean useUrl;
+
+    private String imageExtension = ".jpg";
+
     private static StorageProviderInterface storageProvider = StorageProvider.getInstance();
 
     @Override
@@ -108,6 +118,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         // read parameters from correct block in configuration file
         SubnodeConfiguration myconfig = ConfigPlugins.getProjectAndStepConfig(title, step);
+        this.useUrl = myconfig.getBoolean("useUrl", false);
         this.imageMetadata = myconfig.getString("filenameMetadata");
         this.folder = myconfig.getString("fileHandling/@folder");
         this.ignoreFileExtension = myconfig.getBoolean("fileHandling/@ignoreFileExtension", false);
@@ -174,24 +185,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             Fileformat fileformat = process.readMetadataFile();
             DigitalDocument dd = prepareDigitalDocument(fileformat);
 
-            String strProcessImageFolder = process.getConfiguredImageFolder("media");
+            String processImageFolder = process.getConfiguredImageFolder("media");
             // get a set of filenames in target directory
-            Set<String> existingImages = new HashSet<>(storageProvider.list(strProcessImageFolder));
+            Set<String> existingImages = new HashSet<>(storageProvider.list(processImageFolder));
 
-            List<String> lstImages = getImageNamesList(dd);
-            int iPageNumber = 1;
-
-            for (String strImage : lstImages) {
-                // strImage all have file extensions
-                log.debug("strImage = " + strImage);
-                // process the image page named strImage
-                boolean processResult = processImagePageByName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
-                if (processResult) {
-                    iPageNumber++;
-                }
-                // processResult only counts when ignoreCopyErrors is set false
-                successful = successful && (ignoreCopyErrors || processResult);
-            }
+            // process images by their names or by their urls
+            successful = useUrl ? processImagesByUrls(processImageFolder, dd) : processImagesByNames(processImageFolder, dd, existingImages);
 
             // save the metadata
             process.writeMetadataFile(fileformat);
@@ -237,6 +236,74 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         }
 
         return dd;
+    }
+
+    private boolean processImagesByUrls(String processImageFolder, DigitalDocument dd) {
+        boolean successful = true;
+
+        // get a list of urls 
+        List<String> urls = MetadataManager.getAllMetadataValues(process.getId(), imageMetadata);
+        int iPageNumber = 1;
+
+        // iterate over the list, check every url to see if it is already downloaded, if not download it and name it using the last part of its url
+        for (String url : urls) {
+            log.debug("downloading image from url: " + url);
+            boolean processResult = processImagePageByUrl(url, processImageFolder, iPageNumber);
+            if (processResult) {
+                iPageNumber++;
+            }
+            // processResult only counts when ignoreCopyErrors is set false
+            successful = successful && (ignoreCopyErrors || processResult);
+        }
+
+        return successful;
+    }
+
+    private boolean processImagePageByUrl(String strUrl, String processImageFolder, int iPageNumber) {
+        try {
+            URL url = new URL(strUrl);
+            ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+
+            Path targetPath = Path.of(processImageFolder, String.valueOf(iPageNumber) + imageExtension);
+
+            FileOutputStream outputStream = new FileOutputStream(targetPath.toString());
+            FileChannel fileChannel = outputStream.getChannel();
+
+            fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+            return true;
+
+        } catch (MalformedURLException e) {
+            String message = "The url '" + strUrl + "' is malformed.";
+            logBoth(process.getId(), LogType.ERROR, message);
+            return false;
+
+        } catch (IOException e) {
+            String message = "IOException happened while trying to download the image from: " + strUrl;
+            logBoth(process.getId(), LogType.ERROR, message);
+            return false;
+        }
+    }
+
+
+    private boolean processImagesByNames(String processImageFolder, DigitalDocument dd, Set<String> existingImages) throws UGHException, IOException {
+        boolean successful = true;
+
+        List<String> lstImages = getImageNamesList(dd);
+        int iPageNumber = 1;
+
+        for (String strImage : lstImages) {
+            // strImage all have file extensions
+            log.debug("strImage = " + strImage);
+            // process the image page named strImage
+            boolean processResult = processImagePageByName(strImage, processImageFolder, dd, iPageNumber, existingImages);
+            if (processResult) {
+                iPageNumber++;
+            }
+            // processResult only counts when ignoreCopyErrors is set false
+            successful = successful && (ignoreCopyErrors || processResult);
+        }
+
+        return successful;
     }
 
     /**
