@@ -245,10 +245,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @param dd DigitalDocument
      * @param existingImages a Set containing names of all existing images
      * @return true if all images are successfully processed, false otherwise
-     * @throws UGHException
-     * @throws IOException
      */
-    private boolean processImages(String processImageFolder, DigitalDocument dd, Set<String> existingImages) throws UGHException, IOException {
+    private boolean processImages(String processImageFolder, DigitalDocument dd, Set<String> existingImages) {
         boolean successful = true;
 
         List<String> lstImages = getImageNamesList(dd);
@@ -367,30 +365,35 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @param iPageNumber physical order of this page
      * @param existingImages list of images that were already imported before this run
      * @return true if the image is successfully retrieved or created, false otherwise
-     * @throws UGHException
-     * @throws IOException
      */
     private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
-            final Set<String> existingImages) throws UGHException, IOException {
-        // get the page by its name strImage
-        DocStruct page = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
+            final Set<String> existingImages) {
+        try {
+            // get the page by its name strImage
+            DocStruct page = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
 
-        if (page == null) {
-            String message = "Could not find image " + strImage + " for process " + process.getTitel();
-            LogType logType = ignoreCopyErrors ? LogType.INFO : LogType.ERROR;
-            logBoth(process.getId(), logType, message);
+            if (page == null) {
+                String message = "Could not find image " + strImage + " for process " + process.getTitel();
+                LogType logType = ignoreCopyErrors ? LogType.INFO : LogType.ERROR;
+                logBoth(process.getId(), logType, message);
+                return false;
+            }
+
+            DocStruct physical = dd.getPhysicalDocStruct();
+            DocStruct logical = dd.getLogicalDocStruct();
+            // remove old infos
+            logical.removeReferenceTo(page); // no need to remove the child
+            // add new infos
+            physical.addChild(page); // there won't be any duplicates if page was already added as a child  
+            logical.addReferenceTo(page, "logical_physical");
+
+            return true;
+
+        } catch (UGHException | IOException e) {
+            String message = "failed to process the image: " + strImage;
+            logBoth(process.getId(), LogType.ERROR, message);
             return false;
         }
-
-        DocStruct physical = dd.getPhysicalDocStruct();
-        DocStruct logical = dd.getLogicalDocStruct();
-        // remove old infos
-        logical.removeReferenceTo(page); // no need to remove the child
-        // add new infos
-        physical.addChild(page); // there won't be any duplicates if page was already added as a child  
-        logical.addReferenceTo(page, "logical_physical");
-
-        return true;
     }
 
     /**
