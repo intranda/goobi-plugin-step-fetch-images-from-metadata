@@ -102,9 +102,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private boolean exportImages;
     // true if any images are imported by this run, false otherwise
     private boolean imagesImported = false;
-
+    // true if the images are to be downloaded from given URLs, false if they are to be imported from the configured import folder
     private boolean useUrl;
-
+    // file extension that should be applied on the downloaded images via URL
     private String imageExtension = ".jpg";
 
     private static StorageProviderInterface storageProvider = StorageProvider.getInstance();
@@ -238,6 +238,16 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return dd;
     }
 
+    /**
+     * process all the images
+     * 
+     * @param processImageFolder the media folder of the process
+     * @param dd DigitalDocument
+     * @param existingImages a Set containing names of all existing images
+     * @return true if all images are successfully processed, false otherwise
+     * @throws UGHException
+     * @throws IOException
+     */
     private boolean processImages(String processImageFolder, DigitalDocument dd, Set<String> existingImages) throws UGHException, IOException {
         boolean successful = true;
 
@@ -450,16 +460,42 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return null;
     }
 
+    /**
+     * this is the switch method used to control the calling of methods getAndSavePageFromUrl and getAndSavePageFromFolder
+     * 
+     * @param strImage name of the image
+     * @param processImageFolder media folder of the process
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of the page
+     * @return the new page as a DocStruct object if it is successfully imported, otherwise null
+     * @throws UGHException
+     * @throws IOException
+     */
     private DocStruct getAndSavePage(String strImage, String processImageFolder, DigitalDocument dd, int iPageNumber)
             throws UGHException, IOException {
         return useUrl ? getAndSavePageFromUrl(strImage, processImageFolder, dd, iPageNumber)
                 : getAndSavePageFromFolder(strImage, processImageFolder, dd, iPageNumber);
     }
 
+    /**
+     * get and save the specified image file from the URL
+     * 
+     * @param strImage name of the image
+     * @param processImageFolder media folder of the process
+     * @param dd DigitalDocument
+     * @param iPageNumber physical order of the page
+     * @return the new page as a DocStruct object if it is successfully imported, otherwise null
+     * @throws IOException
+     * @throws UGHException
+     */
     private DocStruct getAndSavePageFromUrl(String strImage, String processImageFolder, DigitalDocument dd, int iPageNumber)
             throws IOException, UGHException {
         // download the file from url
         File fileCopy = downloadImageFile(strImage, processImageFolder);
+        if (fileCopy == null) {
+            // error occurred in the downloading phase
+            return null;
+        }
 
         String imageName = getImageNameFromString(strImage);
 
@@ -470,6 +506,35 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         imagesImported = true;
 
         return dsPage;
+    }
+
+    /**
+     * download the image file from the given url
+     * 
+     * @param strUrl url of the image file
+     * @param processImageFolder media folder of the process
+     * @return the image file as a File object if it is successfully downloaded, null if any IOException should occur
+     */
+    private File downloadImageFile(String strUrl, String processImageFolder) {
+        log.debug("downloading image from url: " + strUrl);
+        try {
+            URL url = new URL(strUrl);
+            String imageName = getImageNameFromUrl(url);
+
+            ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+            Path targetPath = Path.of(processImageFolder, imageName);
+            FileOutputStream outputStream = new FileOutputStream(targetPath.toString());
+            FileChannel fileChannel = outputStream.getChannel();
+            fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
+
+            return new File(targetPath.toString());
+
+        } catch (IOException e) {
+            String message = "failed to download the image from " + strUrl;
+            logBoth(process.getId(), LogType.ERROR, message);
+            return null;
+        }
+
     }
 
     /**
@@ -484,7 +549,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @throws IOException
      */
     private DocStruct getAndSavePageFromFolder(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber)
-            throws UGHException, IOException {
+            throws IOException, UGHException {
         log.debug("getting and saving new page: " + strImage);
         // get matched image file
         File file = getMatchedImageFile(strImage, this.folder);
@@ -525,23 +590,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         // take the first match if there is any
         return imagePaths.isEmpty() ? null : imagePaths.get(0).toFile();
-    }
-
-    private File downloadImageFile(String strUrl, String processImageFolder) throws IOException {
-        log.debug("downloading image from url: " + strUrl);
-        URL url = new URL(strUrl);
-        String imageName = getImageNameFromUrl(url);
-
-        ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
-
-        Path targetPath = Path.of(processImageFolder, imageName);
-
-        FileOutputStream outputStream = new FileOutputStream(targetPath.toString());
-        FileChannel fileChannel = outputStream.getChannel();
-
-        fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
-
-        return new File(targetPath.toString());
     }
 
     /**
@@ -631,6 +679,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return base + (ignoreFileExtension ? "\\..*" : "");
     }
 
+    /**
+     * get the image name from a string
+     * 
+     * @param strUrl a string that is possibly a url
+     * @return the file name of the url if it is really a url string, otherwise the input string itself
+     */
     private String getImageNameFromString(String strUrl) {
         try {
             URL url = new URL(strUrl);
@@ -643,6 +697,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         }
     }
 
+    /**
+     * get the image name from a URL object
+     * 
+     * @param url the URL object
+     * @return the full image name including the configured image extension
+     */
     private String getImageNameFromUrl(URL url) {
         String urlFileName = url.getFile();
         log.debug("urlFileName = " + urlFileName);
@@ -653,6 +713,12 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         return imageName;
     }
 
+    /**
+     * filter the extension of the input image name if necessary
+     * 
+     * @param imageName image name that potentially needs a filtering
+     * @return image name where spaces are replaced with _, and if configured so, then also file extension removed
+     */
     private String filterImageNameExtension(String imageName) {
         imageName = imageName.replace(" ", "_");
 
