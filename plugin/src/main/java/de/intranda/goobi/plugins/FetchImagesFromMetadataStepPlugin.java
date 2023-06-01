@@ -242,6 +242,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         String urlFileName = url.getFile();
         log.debug("urlFileName = " + urlFileName);
 
+        //        String imageName = urlFileName.replaceAll("\\W", "_") + (ignoreFileExtension ? "" : imageExtension);
         String imageName = urlFileName.replaceAll("\\W", "_") + imageExtension;
         log.debug("imageName = " + imageName);
 
@@ -252,10 +253,11 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         try {
             URL url = new URL(strUrl);
             return getImageNameFromUrl(url);
+
         } catch (MalformedURLException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            return null;
+            String message = "Malformed URL";
+            logBoth(process.getId(), LogType.DEBUG, message);
+            return strUrl;
         }
     }
 
@@ -426,23 +428,24 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             logBoth(process.getId(), LogType.DEBUG, message);
         }
 
-        // remove file extension if configured so
-        if (!useUrl && ignoreFileExtension) {
-            int index = strImage.lastIndexOf(".");
-            if (index > 0) {
-                strImage = strImage.substring(0, index);
-            }
-        }
+        //        // remove file extension if configured so
+        //        if (!useUrl && ignoreFileExtension) {
+        //            int index = strImage.lastIndexOf(".");
+        //            if (index > 0) {
+        //                strImage = strImage.substring(0, index);
+        //            }
+        //        }
+        String imageName = parseStrImage(strImage);
         //        strImage = parseStrImage(strImage);
 
         // retrieve the existing page OR if it has not been imported yet, get and save it
-        return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+        return imageExisting ? getExistingPage(imageName, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
     }
 
     private DocStruct getExistingPage(String strImage, DigitalDocument dd, int iPageNumber) {
-        String imageName = useUrl ? getImageNameFromUrl(strImage) : strImage;
+        //        String imageName = useUrl ? getImageNameFromUrl(strImage) : strImage;
 
-        return getExistingPageByName(imageName, dd, iPageNumber);
+        return getExistingPageByName(strImage, dd, iPageNumber);
         //        return useUrl ? getExistingPageFromUrl(strImage, dd, iPageNumber) : getExistingPageFromFolder(strImage, dd, iPageNumber);
     }
 
@@ -457,17 +460,18 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     }
 
     private String parseStrImage(String strImage) {
-        if (useUrl) {
-            return getImageNameFromUrl(strImage);
-        }
+        String imageName = useUrl ? getImageNameFromUrl(strImage) : strImage;
+        //        if (useUrl) {
+        //            return getImageNameFromUrl(strImage);
+        //        }
 
         if (!ignoreFileExtension) {
-            return strImage;
+            return imageName;
         }
 
         // file extension should be ignored
-        int index = strImage.lastIndexOf(".");
-        return index > 0 ? strImage.substring(0, index) : strImage;
+        int index = imageName.lastIndexOf(".");
+        return index > 0 ? imageName.substring(0, index) : imageName;
     }
 
     /**
@@ -480,11 +484,15 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      */
     private DocStruct getExistingPageByName(String strImage, DigitalDocument dd, int iPageNumber) {
         log.debug("getting existing image page: " + strImage);
+        //        String targetImageName = useUrl ? getImageNameFromUrl(strImage) : strImage.replace(" ", "_");
         strImage = strImage.replace(" ", "_");
         String regex = getRegularExpression(strImage);
+        log.debug("regex = " + regex);
+        //        String regex = getRegularExpression(targetImageName);
         List<DocStruct> pages = dd.getAllDocStructsByType("page");
         for (DocStruct page : pages) {
             String imageName = page.getImageName();
+            log.debug("imageName = " + imageName);
             if (imageName.matches(regex)) {
                 // physical page number : update the number
                 MetadataType typePhysPage = prefs.getMetadataTypeByName("physPageNumber");
@@ -516,8 +524,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         // download the file from url
         File fileCopy = downloadImageFile(strImage, processImageFolder);
 
+        String imageName = getImageNameFromUrl(strImage);
+
         // create the page's DocStruct
-        DocStruct dsPage = createDocStructPage(fileCopy, strImage, dd, iPageNumber);
+        DocStruct dsPage = createDocStructPage(fileCopy, imageName, dd, iPageNumber);
 
         // set the flag
         imagesImported = true;
@@ -679,7 +689,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @return the proper regular expression as a string
      */
     private String getRegularExpression(String strImage) {
-        String base = "\\Q" + strImage + "\\E";
+        String imageName = parseStrImage(strImage);
+        String base = "\\Q" + imageName + "\\E";
 
         return base + (ignoreFileExtension ? "\\..*" : "");
     }
