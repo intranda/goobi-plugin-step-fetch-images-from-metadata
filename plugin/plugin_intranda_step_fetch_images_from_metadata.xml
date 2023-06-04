@@ -12,6 +12,9 @@
         <project>*</project>
         <step>*</step>
         
+        <!-- true if the images should be fetched from a url, false if the images should be fetched from the following configured folder. DEFAULT false -->
+        <useUrl>false</useUrl>
+        
         <!-- metadata containing the file name -->
         <filenameMetadata>SeparatedMaterial</filenameMetadata>
         <!-- mode="copy|move"   ignoreFileExtension="true|false"-->
