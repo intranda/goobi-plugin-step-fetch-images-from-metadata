@@ -520,16 +520,25 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      */
     private File downloadImageFile(String strUrl, String processImageFolder) {
         log.debug("downloading image from url: " + strUrl);
+        // check url
+        URL url = null;
         try {
-            URL url = new URL(strUrl);
-            String imageName = getImageNameFromUrl(url);
+            url = new URL(strUrl);
+        } catch (MalformedURLException e) {
+            String message = "the input URL is malformed: " + strUrl;
+            logBoth(process.getId(), LogType.ERROR, message);
+            return null;
+        }
 
-            ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
-            Path targetPath = Path.of(processImageFolder, imageName);
-            FileOutputStream outputStream = new FileOutputStream(targetPath.toString());
+        // url is correctly formed, start to download
+        String imageName = getImageNameFromUrl(url);
+        Path targetPath = Path.of(processImageFolder, imageName);
+
+        try (ReadableByteChannel readableByteChannel = Channels.newChannel(url.openStream());
+                FileOutputStream outputStream = new FileOutputStream(targetPath.toString())) {
+
             FileChannel fileChannel = outputStream.getChannel();
             fileChannel.transferFrom(readableByteChannel, 0, Long.MAX_VALUE);
-
             return new File(targetPath.toString());
 
         } catch (IOException e) {
@@ -537,7 +546,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             logBoth(process.getId(), LogType.ERROR, message);
             return null;
         }
-
     }
 
     /**
