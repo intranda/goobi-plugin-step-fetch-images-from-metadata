@@ -70,6 +70,7 @@ import ugh.dl.Fileformat;
 import ugh.dl.Metadata;
 import ugh.dl.MetadataType;
 import ugh.dl.Prefs;
+import ugh.exceptions.TypeNotAllowedAsChildException;
 import ugh.exceptions.UGHException;
 
 @PluginImplementation
@@ -367,7 +368,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @return true if the image is successfully retrieved or created, false otherwise
      */
     private boolean processImagePageByName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
-            final Set<String> existingImages) {
+            Set<String> existingImages) {
         try {
             // get the page by its name strImage
             DocStruct page = getResultPageByImageName(strImage, strProcessImageFolder, dd, iPageNumber, existingImages);
@@ -389,9 +390,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
             return true;
 
-        } catch (UGHException | IOException e) {
-            String message = "failed to process the image: " + strImage;
-            logBoth(process.getId(), LogType.ERROR, message);
+        } catch (TypeNotAllowedAsChildException e) {
+            String message = "TypeNotAllowedAsChildException captured while processing: " + strImage;
+            logBoth(process.getId(), LogType.DEBUG, message);
             return false;
         }
     }
@@ -404,12 +405,10 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @param dd DigitalDocument
      * @param iPageNumber physical order of this page
      * @param existingImages list of images that were already imported before this run
-     * @return the page as a DocStruct object
-     * @throws UGHException
-     * @throws IOException
+     * @return the page as a DocStruct object, or null if any error should occur
      */
     private DocStruct getResultPageByImageName(String strImage, String strProcessImageFolder, DigitalDocument dd, int iPageNumber,
-            final Set<String> existingImages) throws UGHException, IOException {
+            Set<String> existingImages) {
         // check if the image was already imported
         boolean imageExisting = checkExistenceOfImage(strImage, existingImages);
         if (imageExisting) {
@@ -471,13 +470,19 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      * @param dd DigitalDocument
      * @param iPageNumber physical order of the page
      * @return the new page as a DocStruct object if it is successfully imported, otherwise null
-     * @throws UGHException
-     * @throws IOException
      */
-    private DocStruct getAndSavePage(String strImage, String processImageFolder, DigitalDocument dd, int iPageNumber)
-            throws UGHException, IOException {
-        return useUrl ? getAndSavePageFromUrl(strImage, processImageFolder, dd, iPageNumber)
-                : getAndSavePageFromFolder(strImage, processImageFolder, dd, iPageNumber);
+    private DocStruct getAndSavePage(String strImage, String processImageFolder, DigitalDocument dd, int iPageNumber) {
+        try {
+            return useUrl ? getAndSavePageFromUrl(strImage, processImageFolder, dd, iPageNumber)
+                    : getAndSavePageFromFolder(strImage, processImageFolder, dd, iPageNumber);
+
+        } catch (IOException | UGHException e) {
+            String message = "failed to get and save the page: " + strImage;
+            logBoth(process.getId(), LogType.ERROR, message);
+            return null;
+        }
+        //        return useUrl ? getAndSavePageFromUrl(strImage, processImageFolder, dd, iPageNumber)
+        //                : getAndSavePageFromFolder(strImage, processImageFolder, dd, iPageNumber);
     }
 
     /**
