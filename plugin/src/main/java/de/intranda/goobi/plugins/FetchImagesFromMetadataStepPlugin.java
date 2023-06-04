@@ -392,7 +392,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
 
         } catch (TypeNotAllowedAsChildException e) {
             String message = "TypeNotAllowedAsChildException captured while processing: " + strImage;
-            logBoth(process.getId(), LogType.DEBUG, message);
+            logBoth(process.getId(), LogType.ERROR, message);
             return false;
         }
     }
@@ -414,13 +414,15 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         if (imageExisting) {
             String message = "A file with the Name: " + getImageNameFromString(strImage) + " already exists for this process.";
             logBoth(process.getId(), LogType.DEBUG, message);
+            // retrieve the existing page
+            return getExistingPage(strImage, dd, iPageNumber);
         }
 
-        // retrieve the existing page OR if it has not been imported yet, get and save it
-        return imageExisting ? getExistingPage(strImage, dd, iPageNumber) : getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
+        // the image has not been imported yet, get and save it
+        return getAndSavePage(strImage, strProcessImageFolder, dd, iPageNumber);
     }
 
-    private boolean checkExistenceOfImage(String strImage, final Set<String> existingImages) {
+    private boolean checkExistenceOfImage(String strImage, Set<String> existingImages) {
         String imageName = getImageNameFromString(strImage);
 
         return existingImages.contains(imageName.replace(" ", "_"));
@@ -481,8 +483,6 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             logBoth(process.getId(), LogType.ERROR, message);
             return null;
         }
-        //        return useUrl ? getAndSavePageFromUrl(strImage, processImageFolder, dd, iPageNumber)
-        //                : getAndSavePageFromFolder(strImage, processImageFolder, dd, iPageNumber);
     }
 
     /**
