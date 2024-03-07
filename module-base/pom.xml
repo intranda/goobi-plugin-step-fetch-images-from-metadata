@@ -2,9 +2,9 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>io.goobi.workflow.plugin</groupId>
-    <artifactId>plugin-step-fetch_images_from_metadata</artifactId>
+    <artifactId>plugin-step-fetch-images-from-metadata</artifactId>
     <version>24.03-SNAPSHOT</version>
   </parent>
-  <artifactId>plugin-step-fetch_images_from_metadata-base</artifactId>
+  <artifactId>plugin-step-fetch-images-from-metadata-base</artifactId>
   <packaging>jar</packaging>
 </project>
