@@ -15,8 +15,8 @@ Detail                      | Description
 **Plugin identifier**       | intranda-step-fetch-images-from-metadata
 **Plugin type**             | step
 **Licence**                 | GPL 2.0 or newer
-**Documentation (German)**  | https://docs.goobi.io/workflow-plugins/v/eng/step/goobi-plugin-step-fetch-images-from-metadata
-**Documentation (English)** | https://docs.goobi.io/workflow-plugins/v/ger/step/goobi-plugin-step-fetch-images-from-metadata
+**Documentation (German)**  | https://docs.goobi.io/workflow-plugins/v/ger/step/goobi-plugin-step-fetch-images-from-metadata
+**Documentation (English)** | https://docs.goobi.io/workflow-plugins/v/eng/step/goobi-plugin-step-fetch-images-from-metadata
 
 ## Goobi details
 
