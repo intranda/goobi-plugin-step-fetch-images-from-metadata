@@ -15,7 +15,7 @@
         <!-- true if the images should be fetched from a url, false if the images should be fetched from the following configured folder. DEFAULT false -->
         <useUrl>false</useUrl>
         
-        <!-- true if all existing images and pagination should be removed before a re-run happens -->
+        <!-- true if all existing images and pagination should be removed before a re-run -->
         <clearExistingData>false</clearExistingData>
         
         <!-- metadata containing the file name -->

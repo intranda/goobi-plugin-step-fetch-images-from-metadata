@@ -62,7 +62,9 @@ Die Konfiguration des Plugins erfolgt über die Konfigurationsdatei `plugin_intr
         
         <!-- true if the images should be fetched from a url, false if the images should be fetched from the following configured folder. DEFAULT false -->
         <useUrl>false</useUrl>
-
+        <!-- true if all existing images and pagination should be removed before a re-run -->
+        <clearExistingData>false</clearExistingData>
+        
         <!-- metadata containing the file name -->
         <filenameMetadata>SeparatedMaterial</filenameMetadata>
         
@@ -83,6 +85,7 @@ Die einzelnen Parameter haben die folgende Funktion:
 | `project` | Dieser Parameter legt fest, für welches Projekt der aktuelle Block `<config>` gelten soll. Verwendet wird hierbei der Name des Projektes. Dieser Parameter kann mehrfach pro `<config>`-Block vorkommen. |
 | `step` | Dieser Parameter steuert, für welche Arbeitsschritte der Block `<config>` gelten soll. Verwendet wird hier der Name des Arbeitsschritts. Dieser Parameter kann mehrfach pro `<config>`-Block vorkommen. |
 | `useUrl` | Dieser Parameter bestimmt den Quellort der abzurufenden Bilder. Wenn er auf `true` gesetzt ist, werden die Bilder von den registrierten URLs in der mets-Datei geholt, wenn er auf `false` oder gar nicht gesetzt ist, werden die Bilder aus dem folgenden konfigurierten Ordner geholt. |
+| `clearExistingData` | Dieser Parameter bestimmt, ob vor einem Durchlauf vorhandene Bilder gesucht und gelöscht werden sollen. Neben den Bildern wird auch die Paginierung und Seitenzuweisung entfernt. |
 | `filenameMetadata` | Hier ist der Name des Metadatenfeldes (üblicherweise aus der METS-Datei) angegeben, das den Dateinamen der zu importierenden Datei enthält. |
 | `fileHandling` | Das Attribut `@mode` definiert, ob die Bilder durch Kopieren oder Verschieben importiert werden sollen. Das Attribut `@ignoreFileExtension` steuert, ob die Dateiendung für den Kopiervorgang ignoriert werden soll oder exakt stimmen muss. Das Attribut `@folder` gibt den Ordner an, in dem sich die zu importierenden Dateien befinden.   |
 | `export` | Das Attribut `@enabled` legt fest, ob der Vorgang exportiert werden soll oder nicht, während das Attribut `@exportImages` definiert, ob hierbei die Bilder berücksichtig werden sollen.  |
