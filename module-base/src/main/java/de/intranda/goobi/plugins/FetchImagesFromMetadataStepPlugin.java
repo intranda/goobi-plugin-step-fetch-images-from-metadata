@@ -10,6 +10,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 
 /**
@@ -70,6 +71,7 @@ import ugh.dl.Fileformat;
 import ugh.dl.Metadata;
 import ugh.dl.MetadataType;
 import ugh.dl.Prefs;
+import ugh.dl.Reference;
 import ugh.exceptions.TypeNotAllowedAsChildException;
 import ugh.exceptions.UGHException;
 
@@ -108,6 +110,9 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     // file extension that should be applied on the downloaded images via URL
     private String imageExtension = ".jpg";
 
+    // true if all existing images and pagination should be removed before a re-run happens
+    private boolean clearExistingData = false;
+
     private static StorageProviderInterface storageProvider = StorageProvider.getInstance();
 
     @Override
@@ -127,6 +132,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         this.ignoreCopyErrors = myconfig.getBoolean("fileHandling/@ignoreCopyErrors", false);
         this.startExport = myconfig.getBoolean("export/@enabled", false);
         this.exportImages = myconfig.getBoolean("export/@exportImages", true);
+
+        clearExistingData = myconfig.getBoolean("clearExistingData", false);
         if (!folder.endsWith("/")) {
             folder = folder + "/";
         }
@@ -185,11 +192,42 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         try {
             Fileformat fileformat = process.readMetadataFile();
             DigitalDocument dd = prepareDigitalDocument(fileformat);
-
             String processImageFolder = process.getConfiguredImageFolder("media");
-            // get a set of filenames in target directory
             Set<String> existingImages = new HashSet<>(storageProvider.list(processImageFolder));
 
+            if (clearExistingData) {
+                existingImages.clear();
+
+                DocStruct logical = dd.getLogicalDocStruct();
+                if (logical.getType().isAnchor()) {
+                    logical = logical.getAllChildren().get(0);
+                }
+
+                DocStruct physical = dd.getPhysicalDocStruct();
+                // get a set of filenames in target directory
+
+                // remove all existing files
+                StorageProvider.getInstance().deleteDataInDir(Paths.get(processImageFolder));
+
+                // remove pagination
+                List<DocStruct> pages = physical.getAllChildren();
+                if (pages != null && !pages.isEmpty()) {
+                    // process contains data, clear it
+                    for (DocStruct page : pages) {
+                        dd.getFileSet().removeFile(page.getAllContentFiles().get(0));
+                        List<Reference> refs = new ArrayList<>(page.getAllFromReferences());
+                        for (ugh.dl.Reference ref : refs) {
+                            ref.getSource().removeReferenceTo(page);
+                        }
+                    }
+                    while (physical.getAllChildren() != null && !physical.getAllChildren().isEmpty()) {
+                        physical.removeChild(physical.getAllChildren().get(0));
+                    }
+                    while (logical.getAllChildren() != null && !logical.getAllChildren().isEmpty()) {
+                        logical.removeChild(logical.getAllChildren().get(0));
+                    }
+                }
+            }
             // process images by their names or by their urls
             successful = processImages(processImageFolder, dd, existingImages);
 
@@ -335,7 +373,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
                 return i;
             }
         }
-        
+
         return -1;
     }
 
@@ -385,7 +423,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             // remove old infos
             logical.removeReferenceTo(page); // no need to remove the child
             // add new infos
-            physical.addChild(page); // there won't be any duplicates if page was already added as a child  
+            physical.addChild(page); // there won't be any duplicates if page was already added as a child
             logical.addReferenceTo(page, "logical_physical");
 
             return true;
@@ -774,7 +812,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             return false;
         }
     }
-    
+
     /**
      * get the export plugin for this process
      * 
@@ -784,7 +822,7 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
     private IExportPlugin getExportPluginOfProcess(Process p) {
         IExportPlugin export = null;
         String pluginName = ProcessManager.getExportPluginName(p.getId());
-        
+
         if (StringUtils.isNotEmpty(pluginName)) {
             try {
                 export = (IExportPlugin) PluginLoader.getPluginByTitle(PluginType.Export, pluginName);
