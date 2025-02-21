@@ -640,7 +640,8 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
      */
     private File getMatchedImageFile(String strImage, String folder) {
         String regex = getRegularExpression(strImage);
-        List<Path> imagePaths = storageProvider.listFiles(folder, path -> path.getFileName().toString().matches(regex));
+        List<Path> imagePaths = storageProvider.listFiles(folder,
+                path -> path.getFileName().toString().matches(regex) || path.getFileName().toString().equals(strImage));
 
         // take the first match if there is any
         return imagePaths.isEmpty() ? null : imagePaths.get(0).toFile();
