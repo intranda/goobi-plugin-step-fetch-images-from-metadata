@@ -3,6 +3,10 @@ title: Copying files from metadata fields
 identifier: intranda-step-fetch-images-from-metadata
 published: true
 description: This is a technical documentation for the plugin for the automatic enriching the process with images based on metadata with the file names in the process.
+keywords:
+    - Goobi workflow
+    - Plugin
+    - Step Plugin
 ---
 ## Introduction
 This documentation describes the installation, configuration and use of the plugin. This plugin can be used to copy or move images from a configured folder or from specific URLs to the desired folder in the process using the file name stored in the process. 
