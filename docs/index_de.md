@@ -9,7 +9,7 @@ keywords:
     - Step Plugin
 ---
 ## Einführung
-Die vorliegende Dokumentation beschreibt die Installation, Konfiguration und den Einsatz des Plugins. Mit Hilfe dieses Plugins können Bilder aus einem konfigurierten Ordner oder von bestimmten URLs anhand des im Vorgangs hinterlegten Dateinamens in den gewünschte Ordner des Vorgangs kopiert oder bewegt werden. 
+Die vorliegende Dokumentation beschreibt die Installation, Konfiguration und den Einsatz des Plugins. Mit Hilfe dieses Plugins können Bilder aus einem konfigurierten Ordner oder von bestimmten URLs anhand des im Vorgangs hinterlegten Dateinamens in den gewünschten Ordner des Vorgangs kopiert oder bewegt werden. 
 
 
 ## Installation
@@ -92,4 +92,4 @@ Die einzelnen Parameter haben die folgende Funktion:
 | `clearExistingData` | Dieser Parameter bestimmt, ob vor einem Durchlauf vorhandene Bilder gesucht und gelöscht werden sollen. Neben den Bildern wird auch die Paginierung und Seitenzuweisung entfernt. |
 | `filenameMetadata` | Hier ist der Name des Metadatenfeldes (üblicherweise aus der METS-Datei) angegeben, das den Dateinamen der zu importierenden Datei enthält. |
 | `fileHandling` | Das Attribut `@mode` definiert, ob die Bilder durch Kopieren oder Verschieben importiert werden sollen. Das Attribut `@ignoreFileExtension` steuert, ob die Dateiendung für den Kopiervorgang ignoriert werden soll oder exakt stimmen muss. Das Attribut `@folder` gibt den Ordner an, in dem sich die zu importierenden Dateien befinden.   |
-| `export` | Das Attribut `@enabled` legt fest, ob der Vorgang exportiert werden soll oder nicht, während das Attribut `@exportImages` definiert, ob hierbei die Bilder berücksichtig werden sollen.  |
+| `export` | Das Attribut `@enabled` legt fest, ob der Vorgang exportiert werden soll oder nicht, während das Attribut `@exportImages` definiert, ob hierbei die Bilder berücksichtigt werden sollen.  |

@@ -60,7 +60,7 @@ The plugin is configured via the configuration file `plugin_intranda_step_fetch_
 	-->
     
     <config>
-        <!-- which projects to use for (can be more then one, otherwise use *) -->
+        <!-- which projects to use for (can be more than one, otherwise use *) -->
         <project>*</project>
         <step>*</step>
         
