@@ -3,6 +3,7 @@ package de.intranda.goobi.plugins;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.channels.Channels;
@@ -574,6 +575,19 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
             return null;
         }
 
+        // SSRF protection: reject private, loopback and link-local addresses
+        try {
+            if (!isSafeUrl(url)) {
+                String message = "SSRF protection: rejecting URL with disallowed scheme or private/reserved address: " + strUrl;
+                logBoth(process.getId(), LogType.ERROR, message);
+                return null;
+            }
+        } catch (IOException e) {
+            String message = "SSRF protection: could not resolve host for URL: " + strUrl;
+            logBoth(process.getId(), LogType.ERROR, message);
+            return null;
+        }
+
         // url is correctly formed, start to download
         String imageName = getImageNameFromUrl(url);
         Path targetPath = Path.of(processImageFolder, imageName);
@@ -863,6 +877,18 @@ public class FetchImagesFromMetadataStepPlugin implements IStepPluginVersion2 {
         if (processId > 0) {
             Helper.addMessageToProcessJournal(processId, logType, logMessage);
         }
+    }
+
+    private static boolean isSafeUrl(URL url) throws IOException {
+        String scheme = url.getProtocol();
+        if (!"http".equals(scheme) && !"https".equals(scheme)) {
+            return false;
+        }
+        InetAddress address = InetAddress.getByName(url.getHost());
+        return !address.isLoopbackAddress()
+                && !address.isLinkLocalAddress()
+                && !address.isSiteLocalAddress()
+                && !address.isAnyLocalAddress();
     }
 
 }
